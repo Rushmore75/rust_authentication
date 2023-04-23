@@ -36,14 +36,6 @@ pub struct Keyring {
     all: BiMap<String, Uuid>
 }
 
-/// Represents the authentication methods available to the user.
-pub enum Authentication {
-    /// Username / Password combo
-    Password(UserPass),
-    /// Session id
-    SessionId(Uuid)
-}
-
 /// Represents a Username (email) / password combo
 pub struct UserPass {
     email: String,
@@ -65,6 +57,16 @@ impl Uuid {
     }
 }
 
+/// Represents the authentication methods available to the user.
+/// This can be used as a request guard, it will check if the user's session
+/// id is good. 
+pub enum Authentication {
+    /// Username / Password combo
+    Password(UserPass),
+    /// Session id
+    SessionId(Uuid)
+}
+
 #[derive(Debug)]
 pub enum LoginError {
     Error,
@@ -75,37 +77,24 @@ impl<'r> FromRequest<'r> for Authentication {
     type Error = LoginError;
 
     async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        // get a generic failure message ready
-        let mut response = Outcome::Failure((Status::Unauthorized, LoginError::Error));
 
         // Make get the keyring from rocket
         if let Some(login) = req.rocket().state::<Keyring>() {                    
             // Check the user's cookies for a session id 
-            response = match req.cookies().get(LOGIN_COOKIE_ID) {
-                // They have the session id, validate it
-                Some(session_cookie) => {
-                    // Extract the cookie into a uuid
-                    match uuid::Uuid::from_str(session_cookie.value()) {
-                        Ok(id) => {
-                            login.is_valid_session(&Uuid::wrap(id));
-                            Outcome::Success( Authentication::SessionId(Uuid::wrap(id)) )
-                        },
-                        // The cookie's uuid is mangled
-                        Err(err) => {
-                            Outcome::Failure((Status::Unauthorized, LoginError::Error))
-                        }
-                    }
-                },
-                // No session id, let's try to get them one
-                None => {
-                    todo!();
-                    // TODO forward user to the login page / url
-                    Outcome::Forward(())
+            if let Some(session_cookie) = req.cookies().get(LOGIN_COOKIE_ID) {
+                // Extract the cookie into a uuid
+                match uuid::Uuid::from_str(session_cookie.value()) {
+                    Ok(id) => {
+                        login.is_valid_session(&Uuid::wrap(id));
+                        return Outcome::Success( Authentication::SessionId(Uuid::wrap(id)) );
+                    },
+                    // The cookie's uuid is mangled
+                    Err(_) => {}
                 }
-            }
+            };
         };
         
-        response
+        Outcome::Failure((Status::Unauthorized, LoginError::Error))
     }
 }
 

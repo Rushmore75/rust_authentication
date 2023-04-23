@@ -10,3 +10,7 @@ pub fn submit_ticket(auth: Authentication, body: Json<Ticket>) {
     let con = establish_connection();
     
 }
+
+// #[post("/login")]
+// pub fn login() -> Json<String> {
+// }

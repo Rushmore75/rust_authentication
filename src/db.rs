@@ -10,6 +10,7 @@ use crate::DbUrl;
 
 pub fn establish_connection() -> PgConnection {
 
+    // the env should be loaded into ram at this point, so there shouldn't be problems running this lots
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     
     PgConnection::establish(&database_url)
