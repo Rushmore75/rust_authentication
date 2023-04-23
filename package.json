@@ -1,0 +1,20 @@
+{
+  "name": "rustservertemplate",
+  "author": "Oliver Atkinson (Rushmore75)",
+  "license": "ISC",
+  "version": "1.0.0",
+  "description": "Helping create websites build in rust quickly",
+  
+  "scripts": {
+    "serve": "cargo run"
+  },
+
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rushmore75/RustServerTemplate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Rushmore75/RustServerTemplate/issues"
+  },
+  "homepage": "https://github.com/Rushmore75/RustServerTemplate#readme"
+}
