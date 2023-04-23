@@ -1,0 +1,16 @@
+[package]
+name = "webapi"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+diesel = { version = "2.0.0", features = ["postgres"] }
+dotenvy = "0.15"
+rocket = { version = "0.5.0-rc.2", features = ["json"]}
+serde = { version = "1.0", features = ["derive"] }
+rust-crypto = "0.2"
+# v4 is uuids from random information
+uuid = { version = "1", features = ["v4", "fast-rng"] }
+bimap = "0.6"
