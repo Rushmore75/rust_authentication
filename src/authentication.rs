@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::db::Account;
 
-const LOGIN_COOKIE_ID: &str = "session-id";
+pub const SESSION_COOKIE_ID: &str = "session-id";
 const EMAIL_HEADER_ID: &str = "email";
 const PASSWORD_HEADER_ID: &str = "password";
 
@@ -161,7 +161,7 @@ impl<'r> FromRequest<'r> for Session {
         if let Some(keyring) = req.rocket().state::<RwLock<Keyring>>() {                    
             
             // Check the user's cookies for a session id 
-            if let Some(session_cookie) = req.cookies().get(LOGIN_COOKIE_ID) {
+            if let Some(session_cookie) = req.cookies().get_private(SESSION_COOKIE_ID) {
                 // Extract the cookie into a uuid
                 if let Ok(id) = uuid::Uuid::from_str(session_cookie.value()) {
                     if keyring.read().await.is_valid_session_uuid(&Uuid::from(id)) {

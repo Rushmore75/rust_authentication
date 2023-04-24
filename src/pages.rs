@@ -1,15 +1,18 @@
-use rocket::{get, serde::json::Json, post, response::status, http::Status, tokio::sync::RwLock, State};
+use rocket::{get, serde::json::Json, post, response::status, http::{Status, Cookie, CookieJar}, tokio::sync::RwLock, State};
 
-use crate::{db::{Account, BodyAccount, Dept, Ticket, BodyMessage, BodyTicket, Message, Assignment, BodyAssignment}, authentication::{Session, Keyring}};
+use crate::{db::{Account, BodyAccount, Dept, Ticket, BodyMessage, BodyTicket, Message, Assignment, BodyAssignment}, authentication::{Session, Keyring, self, SESSION_COOKIE_ID}};
 
 #[get("/login")]
-pub fn login(auth: Session) -> Json<Session> {
-    Json::from(auth)
+pub fn login(auth: Session, jar: &CookieJar) -> status::Accepted<&'static str> {
+    jar.add_private(Cookie::new(SESSION_COOKIE_ID, auth.uuid.to_string()));
+    status::Accepted(Some("Logged in"))
+    
 }
 
 #[get("/logout")]
-pub async fn logout(auth: Session, keyring: &State<RwLock<Keyring>>) -> status::Accepted<&'static str> {
+pub async fn logout(auth: Session, keyring: &State<RwLock<Keyring>>, jar: &CookieJar<'_>) -> status::Accepted<&'static str> {
     keyring.write().await.logout(&auth);
+    jar.remove_private(Cookie::named(SESSION_COOKIE_ID));
     status::Accepted(Some("logged out"))
 }
 
