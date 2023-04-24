@@ -54,6 +54,7 @@ impl Keyring {
                     // generate them a user id
                     let user_id = Uuid::wrap(uuid::Uuid::new_v4());
                     self.all.insert(email.to_string(), user_id);
+                    println!("Logging in: {:?}", user_id);
                     return Some(Session(user_id));
                 } 
             },  
@@ -62,12 +63,12 @@ impl Keyring {
         None
     }
     
-    fn logout(&mut self, email: &String) {
-        self.all.remove_by_left(email);
+    pub fn logout(&mut self, session: &Session) {
+        println!("Logging out: {:?}", session.0);
+        self.all.remove_by_right(&session.0);
     }
     
     fn is_valid_session(&self, session_id: &Uuid) -> bool {
-        println!("Is {:?} session valid?", session_id);
         self.get_email(session_id).is_some()
     }
     
@@ -131,13 +132,17 @@ impl<'r> FromRequest<'r> for Session {
             if let Some(session_cookie) = req.cookies().get(LOGIN_COOKIE_ID) {
                 // Extract the cookie into a uuid
                 if let Ok(id) = uuid::Uuid::from_str(session_cookie.value()) {
-                    keyring.write().await.is_valid_session(&Uuid::wrap(id));
-                    println!("Authenticating via cookie");
-                    // authenticate user
-                    return Outcome::Success( Session(Uuid::wrap(id)) );
+                    if keyring.read().await.is_valid_session(&Uuid::wrap(id)) {
+                        println!("Authenticating via cookie");
+                        // authenticate user
+                        return Outcome::Success( Session(Uuid::wrap(id)) );
+                    }
                 }    
             };
             // Something above, has at this point, gone wrong.
+
+            // TODO potentially shouldn't log in the user with the authenticate method.
+            // But at the same time there isn't really a reason to add complexity.
 
             // If they have both their email and password in the headers, log them in.
             if let Some(email) = req.headers().get_one(EMAIL_HEADER_ID) {
