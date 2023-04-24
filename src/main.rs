@@ -17,7 +17,9 @@ async fn main() -> Result<(), rocket::Error> {
             pages::submit_ticket,
             pages::login,
             pages::logout,
-            pages::create_user
+            pages::create_user,
+            pages::assign_ticket,
+            pages::my_tickets
             ])
         // a hashmap of all logged in users
         .manage(RwLock::new(authentication::Keyring::new()))
