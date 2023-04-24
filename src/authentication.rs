@@ -1,11 +1,11 @@
-use std::str::FromStr;
+use std::str::{FromStr, Utf8Error};
 
 use bimap::BiMap;
-use crypto::bcrypt;
+use crypto::{scrypt::{scrypt, ScryptParams}};
 use rocket::{request::{FromRequest, self, Outcome}, Request, tokio::sync::RwLock, http::Status};
 use serde::Serialize;
 
-use crate::db::establish_connection;
+use crate::db::Account;
 
 const LOGIN_COOKIE_ID: &str = "session-id";
 const EMAIL_HEADER_ID: &str = "email";
@@ -18,29 +18,54 @@ pub struct Keyring {
 }
 
 impl Keyring {
+    const OUTPUT_SIZE: usize = 24;
+
     pub fn new() -> Self {
         Self {
             all: BiMap::<String, Uuid>::new()
         }
     }
      
-    fn login(&mut self, email: &str, password: &str) -> Option<Uuid> {
-        const DEFAULT_COST: u32 = 10;
-        const OUTPUT_SIZE: usize = 24;
-        let mut output = [0u8; OUTPUT_SIZE];
+    /// A centralized way to hash strings (but mostly just passwords)
+    /// for the web api.
+    pub fn hash_string(input: &str) -> Result<String, Utf8Error> {
+        let mut hashed_password = [0u8; Self::OUTPUT_SIZE];
        
         // FIXME learn how to salt properly
-        bcrypt::bcrypt(DEFAULT_COST, &[1, 2, 3, 4, 5], password.as_bytes(), &mut output);
-        
-        // TODO check against the db if that's a email / password combo
-        let con = establish_connection();
-        
-        // generate them a user id
-        let user_id = Uuid::wrap(uuid::Uuid::new_v4());
-        
-        self.all.insert(email.to_string(), user_id);
-        
-        Some(user_id)
+        scrypt(
+            input.as_bytes(),
+            &[1, 2, 4, 5],
+            &ScryptParams::new(5, 5, 5),
+            &mut hashed_password
+        );
+
+        Ok(std::str::from_utf8(&hashed_password)?.to_owned())
+    } 
+
+    /// # Login
+    /// Will try to log the user designated by the given email and password.
+    /// If this attempt it successful it will return them a new [`Session`].
+    fn login(&mut self, email: &str, password: &str) -> Option<Session> {
+        // hash the incoming password
+        match Self::hash_string(password) {
+            Ok(hashed_password) => {
+                // search the db for the account under that email.
+                match Account::get_users_hash(email) {
+                    Some(stored_hash) => {
+                        // then see if the password hashes match.
+                        if hashed_password == stored_hash {
+                            // generate them a user id
+                            let user_id = Uuid::wrap(uuid::Uuid::new_v4());
+                            self.all.insert(email.to_string(), user_id);
+                            return Some(Session(user_id));
+                        } 
+                    },  
+                    None => println!("Please create a user for {} before trying to log in as them.", email),
+                };
+            },
+            Err(e) => println!("Password isn't in UTF-8 encoding!"),
+        };
+        None
     }
     
     fn logout(&mut self, email: &String) {
@@ -48,16 +73,18 @@ impl Keyring {
     }
     
     fn is_valid_session(&self, session_id: &Uuid) -> bool {
+        println!("Is {:?} session valid?", session_id);
         self.get_email(session_id).is_some()
     }
     
+    /// Get the email of a user based on their session id.
     fn get_email(&self, session_id: &Uuid) -> Option<String> {
         self.all.get_by_right(session_id).cloned()
     }
 
 }
 
-#[derive(Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Eq, Hash, PartialEq, Debug)]
 /// A wrapper around Uuid so I can impl my own methods.
 pub struct Uuid {
     uuid: uuid::Uuid,
@@ -73,7 +100,7 @@ impl Uuid {
 }
 
 /// Represents a user's session, holding their session id.
-/// # Request Guard
+/// # As a Request Guard
 /// This can be used as a rocket request guard. It will check the user's cookies for
 /// a valid session id, if that doesn't exist it will check the headers for a email /
 /// password combo, and try to log them in that way. If both of these fail, it will
@@ -110,7 +137,8 @@ impl<'r> FromRequest<'r> for Session {
             if let Some(session_cookie) = req.cookies().get(LOGIN_COOKIE_ID) {
                 // Extract the cookie into a uuid
                 if let Ok(id) = uuid::Uuid::from_str(session_cookie.value()) {
-                    keyring.blocking_write().is_valid_session(&Uuid::wrap(id));
+                    keyring.write().await.is_valid_session(&Uuid::wrap(id));
+                    println!("Authenticating via cookie");
                     // authenticate user
                     return Outcome::Success( Session(Uuid::wrap(id)) );
                 }    
@@ -120,10 +148,11 @@ impl<'r> FromRequest<'r> for Session {
             // If they have both their email and password in the headers, log them in.
             if let Some(email) = req.headers().get_one(EMAIL_HEADER_ID) {
                 if let Some(password) = req.headers().get_one(PASSWORD_HEADER_ID) {
-                    if let Some(id) = keyring.blocking_write().login(email, password) {
+                    if let Some(id) = keyring.write().await.login(email, password) {
+                        println!("Authenticating via user/pass combo");
                         // TODO add a way to tell the user to change from email / password method
                         // to the session id method
-                        return Outcome::Success( Session(id) );
+                        return Outcome::Success( id );
                     }
                 }
             }
