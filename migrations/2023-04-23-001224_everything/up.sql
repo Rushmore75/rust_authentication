@@ -1,32 +1,33 @@
 -- Your SQL goes here
 CREATE TABLE dept (
-    id          INT PRIMARY KEY,
+    id          SERIAL PRIMARY KEY,
     dept_name   VARCHAR NOT NULL
 );
 
 CREATE TABLE account (
-    id              INT NOT NULL,
-    email           VARCHAR PRIMARY KEY,
+    id              SERIAL PRIMARY KEY,
+    email           VARCHAR UNIQUE NOT NULL,
     dept            INT REFERENCES dept (id),
-    password_hash   CHAR(24)
+    password_hash   BYTEA NOT NULL
 );
 
 CREATE TABLE message (
-    id      INT PRIMARY KEY,
-    date    TIMESTAMP NOT NULL DEFAULT NOW()    
+    id      BIGSERIAL PRIMARY KEY,
+    date    TIMESTAMP NOT NULL DEFAULT NOW(),
+    content VARCHAR NOT NULL
 );
 
 CREATE TABLE ticket (
-    id          INT PRIMARY KEY,
-    owner       INT REFERENCES account (id),
-    title       INT REFERENCES message (id),
-    description INT REFERENCES message (id)
+    id          SERIAL PRIMARY KEY,
+    owner       INT REFERENCES account (id) NOT NULL,
+    title       BIGINT REFERENCES message (id) NOT NULL,
+    description BIGINT REFERENCES message (id) NOT NULL
 );
 
 CREATE TABLE assignment (
-    id              INT PRIMARY KEY,
-    assigned_by     INT REFERENCES account (id),
-    owner_id        INT REFERENCES account (id)
+    id              SERIAL PRIMARY KEY,
+    assigned_by     INT REFERENCES account (id) NOT NULL,
+    owner_id        INT REFERENCES account (id) NOT NULL
     -- assigned to:
 );
 

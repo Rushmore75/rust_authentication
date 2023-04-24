@@ -28,7 +28,7 @@ impl Keyring {
      
     /// A centralized way to hash strings (but mostly just passwords)
     /// for the web api.
-    pub fn hash_string(input: &str) -> Result<String, Utf8Error> {
+    pub fn hash_string(input: &str) -> [u8; Self::OUTPUT_SIZE] {
         let mut hashed_password = [0u8; Self::OUTPUT_SIZE];
        
         // FIXME learn how to salt properly
@@ -39,31 +39,25 @@ impl Keyring {
             &mut hashed_password
         );
 
-        Ok(std::str::from_utf8(&hashed_password)?.to_owned())
+        hashed_password
     } 
 
     /// # Login
     /// Will try to log the user designated by the given email and password.
     /// If this attempt it successful it will return them a new [`Session`].
     fn login(&mut self, email: &str, password: &str) -> Option<Session> {
-        // hash the incoming password
-        match Self::hash_string(password) {
-            Ok(hashed_password) => {
-                // search the db for the account under that email.
-                match Account::get_users_hash(email) {
-                    Some(stored_hash) => {
-                        // then see if the password hashes match.
-                        if hashed_password == stored_hash {
-                            // generate them a user id
-                            let user_id = Uuid::wrap(uuid::Uuid::new_v4());
-                            self.all.insert(email.to_string(), user_id);
-                            return Some(Session(user_id));
-                        } 
-                    },  
-                    None => println!("Please create a user for {} before trying to log in as them.", email),
-                };
-            },
-            Err(e) => println!("Password isn't in UTF-8 encoding!"),
+        // search the db for the account under that email.
+        match Account::get_users_hash(email) {
+            Some(stored_hash) => {
+                // then see if the password hashes match.
+                if Self::hash_string(password) == stored_hash[..] {
+                    // generate them a user id
+                    let user_id = Uuid::wrap(uuid::Uuid::new_v4());
+                    self.all.insert(email.to_string(), user_id);
+                    return Some(Session(user_id));
+                } 
+            },  
+            None => println!("Please create a user for {} before trying to log in as them.", email),
         };
         None
     }

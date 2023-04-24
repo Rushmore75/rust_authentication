@@ -50,23 +50,22 @@ impl Dept {
         results 
     }
     
-    pub fn get_or_create(name: &str) -> Self {
+    pub fn get_or_create(name: &str) -> Result<Self, diesel::result::Error> {
         let find = Self::get_id(name);
         match find.into_iter().next() {
-            Some(x) => x,
+            Some(x) => Ok(x),
             None => Self::new(name).load(),
         }
     }
 }
 
 impl NewDept<'_> {
-    pub fn load(&self) -> Dept {
+    pub fn load(&self) -> Result<Dept, diesel::result::Error> {
         let mut conn = establish_connection(); 
 
         let result = diesel::insert_into(dept::table)
             .values(self)
-            .get_result(&mut conn)
-            .expect("Error inserting new department.");
+            .get_result(&mut conn);
         result
     } 
 }
@@ -79,7 +78,7 @@ pub struct Account {
     id: i32,
     email: String,
     dept: Option<i32>,
-    password_hash: String,
+    password_hash: Vec<u8>,
 }
 
 #[derive(Insertable)]
@@ -87,7 +86,7 @@ pub struct Account {
 pub struct NewAccount<'a> {
     email: &'a str,
     dept: i32,
-    password_hash: String, 
+    password_hash: Vec<u8>, 
 }
 
 #[derive(Deserialize)]
@@ -101,20 +100,16 @@ impl Account {
     /// Create a new account, use [`NewAccount::load()`] to put into the database, and get 
     /// an identifier.
     pub fn new<'a>(email: &'a str, password: &'a str, department: Dept) -> NewAccount<'a> {
-        match Keyring::hash_string(password) {
-            Ok(password_hash) => {
-                NewAccount {
-                    email,
-                    dept: department.id,
-                    password_hash,
-                }
-            },
-            Err(_) => todo!("Hashing password failed. Not sure where to send this error yet"),
+        let password_hash = Keyring::hash_string(password);
+        NewAccount {
+            email,
+            dept: department.id,
+            password_hash: password_hash.to_vec(),
         }
     }
 
     /// Get the specified user's password hash (if they exist).
-    pub fn get_users_hash<'a>(mail: &'a str) -> Option<String> {
+    pub fn get_users_hash<'a>(mail: &'a str) -> Option<Vec<u8>> {
         // This has to be "mail" instead of "email" because it
         // has a field named "email", and the collide.
 
@@ -135,13 +130,12 @@ impl Account {
 
 impl NewAccount<'_> {
     /// Put this new account into the database. Returns the newly placed account.
-    pub fn load(&self) -> Account {
+    pub fn load(&self) -> Result<Account, diesel::result::Error> {
         let mut conn = establish_connection(); 
 
         let result = diesel::insert_into(account::table)
             .values(self)
-            .get_result(&mut conn)
-            .expect("Error inserting new account.");
+            .get_result(&mut conn);
         result
     } 
 }
@@ -171,13 +165,12 @@ impl Message {
 }
 
 impl NewMessage<'_> {
-    pub fn load(&self) -> Message {
+    pub fn load(&self) -> Result<Message, diesel::result::Error> {
         let mut conn = establish_connection(); 
 
         let result = diesel::insert_into(message::table)
             .values(self)
-            .get_result(&mut conn)
-            .expect("Error inserting new message.");
+            .get_result(&mut conn);
         result
     } 
 }
@@ -212,13 +205,12 @@ impl Ticket {
 }
 
 impl NewTicket {
-    pub fn load(&self) -> Ticket {
+    pub fn load(&self) -> Result<Ticket, diesel::result::Error>{
         let mut conn = establish_connection(); 
 
         let result = diesel::insert_into(ticket::table)
             .values(self)
-            .get_result(&mut conn)
-            .expect("Error inserting new ticket.");
+            .get_result(&mut conn);
         result
     } 
 }

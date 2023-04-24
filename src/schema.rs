@@ -5,14 +5,15 @@ diesel::table! {
         id -> Int4,
         email -> Varchar,
         dept -> Nullable<Int4>,
+        password_hash -> Bytea,
     }
 }
 
 diesel::table! {
     assignment (id) {
         id -> Int4,
-        assigned_by -> Nullable<Int4>,
-        owner_id -> Nullable<Int4>,
+        assigned_by -> Int4,
+        owner_id -> Int4,
     }
 }
 
@@ -25,17 +26,18 @@ diesel::table! {
 
 diesel::table! {
     message (id) {
-        id -> Int4,
+        id -> Int8,
         date -> Timestamp,
+        content -> Varchar,
     }
 }
 
 diesel::table! {
     ticket (id) {
         id -> Int4,
-        owner -> Nullable<Int4>,
-        title -> Nullable<Int4>,
-        description -> Nullable<Int4>,
+        owner -> Int4,
+        title -> Int8,
+        description -> Int8,
     }
 }
 
