@@ -96,6 +96,25 @@ pub struct BodyAccount<'a> {
     pub password: &'a str,
 }
 
+/// For representing [`Account`] in instances where you aren't the owner of the account.
+pub struct GenericBodyAccount {
+    /// Accounts are verified to exist during deserialization.
+    pub account: Account,
+}
+
+impl<'de> Deserialize<'de> for GenericBodyAccount {
+    
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: serde::Deserializer<'de>
+    {
+        let email: &str =  Deserialize::deserialize(deserializer)?;
+        if let Some(account) = Account::get(email) {
+            return Ok(Self {account});
+        }
+        Err(serde::de::Error::custom(format!("Account not found for email \"{}\".", email)))
+    }
+}
+
 /// Represents accounts in the format that the database represents them.
 impl Account {
     /// Create a new account, use [`NewAccount::load()`] to put into the database, and get 
@@ -234,6 +253,38 @@ impl Ticket {
             description: desc.id
         }
     }
+    
+    pub fn get(find_id: i32) -> Option<Ticket> {
+
+        use crate::schema::ticket::dsl::*;
+
+        // TODO find the "take 1" sql method for diesel
+        let results: Vec<Self> = ticket 
+            .filter(id.eq(find_id))
+            .load::<Self>(&mut establish_connection())
+            .expect("Error loading tickets.");
+
+        match results.into_iter().next() {
+            Some(x) => Some(x),
+            None => None,
+        }
+    }
+
+    pub fn get_all_for(user: &Account) -> Vec<i32> {
+                
+        let results = assignment::dsl::assignment
+            .inner_join(
+                ticket::dsl::ticket.on(
+                    assignment::dsl::ticket.eq(ticket::dsl::id).and(assignment::dsl::assigned_to.eq(user.id))
+                )
+            )
+            .select(ticket::dsl::id)
+            .load(&mut establish_connection())
+            .expect("Failed to find tickets for user.");
+
+        results
+    }
+
 }
 
 impl NewTicket {
@@ -247,4 +298,51 @@ impl NewTicket {
     } 
 }
 
+//=======================================
+//              Assignment
+//=======================================
+#[derive(Queryable)]
+pub struct Assignment {
+    pub id: i32,
+    assigned_by: i32,
+    assigned_to: i32,
+    ticket: i32,
+}
 
+#[derive(Insertable)]
+#[diesel(table_name = schema::assignment)]
+pub struct NewAssignment {
+    assigned_by: i32,
+    assigned_to: i32,
+    ticket: i32,
+}
+
+#[derive(Deserialize)]
+pub struct BodyAssignment {
+    /// Vec of emails of accounts that this is assigned to
+    pub assigned_to: Vec<GenericBodyAccount>,
+    pub ticket: i32
+}
+
+impl Assignment {
+    pub fn new(by: &Account, to: &Account, ticket: &Ticket) -> NewAssignment {
+        NewAssignment {
+            assigned_by: by.id,
+            assigned_to: to.id,
+            ticket: ticket.id
+        } 
+    }
+}
+
+
+
+impl NewAssignment {
+    pub fn load(&self) -> Result<Assignment, diesel::result::Error>{
+        let mut conn = establish_connection(); 
+
+        let result = diesel::insert_into(assignment::table)
+            .values(self)
+            .get_result(&mut conn);
+        result
+    } 
+}

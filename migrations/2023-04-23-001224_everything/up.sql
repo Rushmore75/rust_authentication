@@ -28,8 +28,8 @@ CREATE TABLE ticket (
 CREATE TABLE assignment (
     id              SERIAL PRIMARY KEY,
     assigned_by     INT REFERENCES account (id) NOT NULL,
-    owner_id        INT REFERENCES account (id) NOT NULL
-    -- assigned to:
+    assigned_to     INT REFERENCES account (id) NOT NULL,
+    ticket          INT REFERENCES ticket  (id) NOT NULL
 );
 
 

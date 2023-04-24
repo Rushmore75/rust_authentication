@@ -13,7 +13,8 @@ diesel::table! {
     assignment (id) {
         id -> Int4,
         assigned_by -> Int4,
-        owner_id -> Int4,
+        assigned_to -> Int4,
+        ticket -> Int4,
     }
 }
 
@@ -43,6 +44,7 @@ diesel::table! {
 }
 
 diesel::joinable!(account -> dept (dept));
+diesel::joinable!(assignment -> ticket (ticket));
 diesel::joinable!(message -> account (author));
 diesel::joinable!(ticket -> account (owner));
 
