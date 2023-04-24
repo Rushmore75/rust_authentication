@@ -27,6 +27,7 @@ diesel::table! {
 diesel::table! {
     message (id) {
         id -> Int8,
+        author -> Int4,
         date -> Timestamp,
         content -> Varchar,
     }
@@ -42,6 +43,7 @@ diesel::table! {
 }
 
 diesel::joinable!(account -> dept (dept));
+diesel::joinable!(message -> account (author));
 diesel::joinable!(ticket -> account (owner));
 
 diesel::allow_tables_to_appear_in_same_query!(

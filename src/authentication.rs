@@ -54,28 +54,29 @@ impl Keyring {
                     // generate them a user id
                     let user_id = Uuid::wrap(uuid::Uuid::new_v4());
                     self.all.insert(email.to_string(), user_id);
-                    println!("Logging in: {:?}", user_id);
                     return Some(Session(user_id));
                 } 
             },  
-            None => println!("Please create a user for {} before trying to log in as them.", email),
+            None => println!("Please create a user for \"{}\" before trying to log in as them.", email),
         };
         None
     }
     
     pub fn logout(&mut self, session: &Session) {
-        println!("Logging out: {:?}", session.0);
         self.all.remove_by_right(&session.0);
     }
     
-    fn is_valid_session(&self, session_id: &Uuid) -> bool {
+    /// Check if the session id you have is valid.
+    #[must_use]
+    fn is_valid_session(&self, session_id: &Session) -> bool {
         self.get_email(session_id).is_some()
     }
     
     /// Get the email of a user based on their session id.
-    fn get_email(&self, session_id: &Uuid) -> Option<String> {
-        self.all.get_by_right(session_id).cloned()
+    pub fn get_email(&self, session_id: &Session) -> Option<String> {
+        self.all.get_by_right(&session_id.0).cloned()
     }
+     
 
 }
 
@@ -101,6 +102,13 @@ impl Uuid {
 /// password combo, and try to log them in that way. If both of these fail, it will
 /// throw an error and the request will not continue.
 pub struct Session(Uuid);
+
+impl From<uuid::Uuid> for Session {
+    /// Automatically wrap the uuid.
+    fn from(value: uuid::Uuid) -> Self {
+        Self(Uuid { uuid: value })
+    }
+}
 
 impl Serialize for Session {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -132,7 +140,7 @@ impl<'r> FromRequest<'r> for Session {
             if let Some(session_cookie) = req.cookies().get(LOGIN_COOKIE_ID) {
                 // Extract the cookie into a uuid
                 if let Ok(id) = uuid::Uuid::from_str(session_cookie.value()) {
-                    if keyring.read().await.is_valid_session(&Uuid::wrap(id)) {
+                    if keyring.read().await.is_valid_session(&Session::from(id)) {
                         println!("Authenticating via cookie");
                         // authenticate user
                         return Outcome::Success( Session(Uuid::wrap(id)) );

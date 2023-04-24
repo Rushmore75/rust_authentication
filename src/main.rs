@@ -16,6 +16,7 @@ async fn main() -> Result<(), rocket::Error> {
         .mount("/", routes![
             pages::submit_ticket,
             pages::login,
+            pages::logout,
             pages::create_user
             ])
         // a hashmap of all logged in users

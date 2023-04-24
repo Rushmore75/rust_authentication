@@ -89,8 +89,9 @@ pub struct NewAccount<'a> {
     password_hash: Vec<u8>, 
 }
 
+/// [`Account`] as represented in the body of a HTTP request.
 #[derive(Deserialize)]
-pub struct CreateAccount<'a> {
+pub struct BodyAccount<'a> {
     pub email: &'a str,
     pub password: &'a str,
 }
@@ -108,11 +109,8 @@ impl Account {
         }
     }
 
-    /// Get the specified user's password hash (if they exist).
-    pub fn get_users_hash<'a>(mail: &'a str) -> Option<Vec<u8>> {
-        // This has to be "mail" instead of "email" because it
-        // has a field named "email", and the collide.
-
+    pub fn get<'a>(mail: &'a str) -> Option<Account> {
+ 
         use crate::schema::account::dsl::*;
 
         let results: Vec<Self> = account 
@@ -121,11 +119,30 @@ impl Account {
             .expect("Error loading accounts");
 
         match results.into_iter().next() {
-            Some(x) => Some(x.password_hash),
+            Some(x) => Some(x),
             None => None,
         }
-         
+
     }
+
+    /// Get the specified user's password hash (if they exist).
+    pub fn get_users_hash<'a>(mail: &'a str) -> Option<Vec<u8>> {
+        // This has to be "mail" instead of "email" because it
+        // has a field named "email", and the collide.
+        match Self::get(mail) {
+            Some(w) => Some(w.password_hash),
+            None => None,
+        }
+    }
+    
+    fn create_ticket(&self, title: &str, body: &str) -> Result<Ticket, diesel::result::Error> {
+        
+        let i_title = Message::new(&self, title).load()?;
+        let i_body = Message::new(&self, body).load()?;
+
+        Ticket::new(&self, i_title, i_body).load()
+    }
+
 }
 
 impl NewAccount<'_> {
@@ -144,21 +161,29 @@ impl NewAccount<'_> {
 //              Message
 //=======================================
 #[derive(Queryable)]
-struct Message {
+pub struct Message {
     id: i64,
+    author: i32,
     date: SystemTime,
     content: String
 }
 
 #[derive(Insertable)]
 #[diesel(table_name = schema::message)]
-struct NewMessage<'a> {
+pub struct NewMessage<'a> {
+    author: i32,
     content: &'a str, 
 }
 
+/// [`Message`] as represented by the body of a HTTP request.
+pub struct BodyMessage<'a> {
+    content: &'a str,
+}
+
 impl Message {
-    pub fn new(content: &str) -> NewMessage {
+    pub fn new<'a>(author: &'a Account, content: &'a str) -> NewMessage<'a> {
         NewMessage {
+            author: author.id,
             content,
         }
     }
@@ -179,8 +204,8 @@ impl NewMessage<'_> {
 //              Ticket
 //=======================================
 #[derive(Queryable)]
-struct Ticket {
-    id: i32,
+pub struct Ticket {
+    pub id: i32,
     owner: i32,
     title: i64,
     description: i64,
@@ -188,16 +213,23 @@ struct Ticket {
 
 #[derive(Insertable)]
 #[diesel(table_name = schema::ticket)]
-struct NewTicket {
+pub struct NewTicket {
     owner: i32,
     title: i64,
     description: i64,
 }
 
+/// [`Ticket`] as represented by the body of a HTTP request.
+#[derive(Deserialize)]
+pub struct BodyTicket<'a> {
+    pub title: &'a str,
+    pub body: &'a str,
+}
+
 impl Ticket {
-    pub fn new(owner: i32, title: Message, desc: Message) -> NewTicket {
+    pub fn new(owner: &Account, title: Message, desc: Message) -> NewTicket {
         NewTicket {
-            owner,
+            owner: owner.id,
             title: title.id,
             description: desc.id
         }
