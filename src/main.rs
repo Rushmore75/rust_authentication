@@ -15,7 +15,8 @@ async fn main() -> Result<(), rocket::Error> {
     let _rocket = rocket::build()
         .mount("/", routes![
             pages::submit_ticket,
-            pages::login
+            pages::login,
+            pages::create_user
             ])
         // a hashmap of all logged in users
         .manage(RwLock::new(authentication::Keyring::new()))
