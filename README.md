@@ -1,4 +1,3 @@
-
 # Developing:
 You will need [diesel](https://diesel.rs/) installed to work with the ORM.
 
