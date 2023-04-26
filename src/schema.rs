@@ -4,24 +4,7 @@ diesel::table! {
     account (id) {
         id -> Int4,
         email -> Varchar,
-        dept -> Nullable<Int4>,
         password_hash -> Bytea,
-    }
-}
-
-diesel::table! {
-    assignment (id) {
-        id -> Int4,
-        assigned_by -> Int4,
-        assigned_to -> Int4,
-        ticket -> Int4,
-    }
-}
-
-diesel::table! {
-    dept (id) {
-        id -> Int4,
-        dept_name -> Varchar,
     }
 }
 
@@ -34,24 +17,9 @@ diesel::table! {
     }
 }
 
-diesel::table! {
-    ticket (id) {
-        id -> Int4,
-        owner -> Int4,
-        title -> Int8,
-        description -> Int8,
-    }
-}
-
-diesel::joinable!(account -> dept (dept));
-diesel::joinable!(assignment -> ticket (ticket));
 diesel::joinable!(message -> account (author));
-diesel::joinable!(ticket -> account (owner));
 
 diesel::allow_tables_to_appear_in_same_query!(
     account,
-    assignment,
-    dept,
     message,
-    ticket,
 );

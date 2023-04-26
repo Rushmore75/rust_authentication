@@ -1,5 +1,5 @@
 version: '3.1'
-name: capstone_db
+name: notification-relay 
 services:
   db:
     image: postgres
@@ -7,10 +7,10 @@ services:
     environment:
       POSTGRES_USER: admin 
       POSTGRES_PASSWORD: example_password 
-      POSTGRES_DB: tickets
+      POSTGRES_DB: notifications
 
   adminer:
     image: adminer
     restart: always
     ports:
-      - 8080:8080
+      - 8081:8080

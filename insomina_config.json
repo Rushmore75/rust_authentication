@@ -1,0 +1,139 @@
+{
+    "_type": "export",
+    "__export_format": 4,
+    "__export_date": "2023-04-26T04:54:03.904Z",
+    "__export_source": "insomnia.desktop.app:v2023.1.0",
+    "resources": [
+        {
+            "_id": "req_e9161a4a518f45379058e57c4d208a76",
+            "parentId": "wrk_f44b319f235e468787d73eb1240d0b20",
+            "modified": 1682484678928,
+            "created": 1682484613279,
+            "url": "{{ _.base_url }}/create_account",
+            "name": "new account",
+            "description": "",
+            "method": "POST",
+            "body": {
+                "mimeType": "application/json",
+                "text": "{\n\t\"email\": \"bob@mail.com\",\n\t\"password\": \"1234\"\n}"
+            },
+            "parameters": [],
+            "headers": [
+                {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                }
+            ],
+            "authentication": {},
+            "metaSortKey": -1682484613279,
+            "isPrivate": false,
+            "settingStoreCookies": true,
+            "settingSendCookies": true,
+            "settingDisableRenderRequestBody": false,
+            "settingEncodeUrl": true,
+            "settingRebuildPath": true,
+            "settingFollowRedirects": "global",
+            "_type": "request"
+        },
+        {
+            "_id": "wrk_f44b319f235e468787d73eb1240d0b20",
+            "parentId": null,
+            "modified": 1682484610085,
+            "created": 1682484610085,
+            "name": "My Collection",
+            "description": "",
+            "scope": "collection",
+            "_type": "workspace"
+        },
+        {
+            "_id": "req_1b73fedb711c4e7f88b1c772af212c62",
+            "parentId": "wrk_f44b319f235e468787d73eb1240d0b20",
+            "modified": 1682484783480,
+            "created": 1682484683854,
+            "url": "{{ _.base_url }}/login",
+            "name": "login",
+            "description": "",
+            "method": "GET",
+            "body": {},
+            "parameters": [],
+            "headers": [
+                {
+                    "id": "pair_a7b6cd2d34b54f69b1f9ada9120ce247",
+                    "name": "email",
+                    "value": "bob@mail.com",
+                    "description": "",
+                    "disabled": false
+                },
+                {
+                    "id": "pair_ab750c8e5be243f987e83508558ff1bc",
+                    "name": "password",
+                    "value": "1234",
+                    "description": "",
+                    "disabled": false
+                }
+            ],
+            "authentication": {},
+            "metaSortKey": -1682484683854,
+            "isPrivate": false,
+            "settingStoreCookies": true,
+            "settingSendCookies": true,
+            "settingDisableRenderRequestBody": false,
+            "settingEncodeUrl": true,
+            "settingRebuildPath": true,
+            "settingFollowRedirects": "global",
+            "_type": "request"
+        },
+        {
+            "_id": "req_f90ef3dda8de48fc9a2bc376dc405a6d",
+            "parentId": "wrk_f44b319f235e468787d73eb1240d0b20",
+            "modified": 1682484768662,
+            "created": 1682484756624,
+            "url": "{{ _.base_url }}/logout",
+            "name": "logout",
+            "description": "",
+            "method": "GET",
+            "body": {},
+            "parameters": [],
+            "headers": [],
+            "authentication": {},
+            "metaSortKey": -1682484756624,
+            "isPrivate": false,
+            "settingStoreCookies": true,
+            "settingSendCookies": true,
+            "settingDisableRenderRequestBody": false,
+            "settingEncodeUrl": true,
+            "settingRebuildPath": true,
+            "settingFollowRedirects": "global",
+            "_type": "request"
+        },
+        {
+            "_id": "env_0ed81e304cf52da0a3f23102c5274ca24638b292",
+            "parentId": "wrk_f44b319f235e468787d73eb1240d0b20",
+            "modified": 1682484643799,
+            "created": 1682484610092,
+            "name": "Base Environment",
+            "data": {
+                "base_url": "127.0.0.1:8000"
+            },
+            "dataPropertyOrder": {
+                "&": [
+                    "base_url"
+                ]
+            },
+            "color": null,
+            "isPrivate": false,
+            "metaSortKey": 1682484610092,
+            "_type": "environment"
+        },
+        {
+            "_id": "spc_1adf41aa6f134412b31eb0a64138da1e",
+            "parentId": "wrk_f44b319f235e468787d73eb1240d0b20",
+            "modified": 1682484610087,
+            "created": 1682484610087,
+            "fileName": "My Collection",
+            "contents": "",
+            "contentType": "yaml",
+            "_type": "api_spec"
+        }
+    ]
+}

@@ -1,4 +1,5 @@
-use std::str::{FromStr, Utf8Error};
+
+use std::str::FromStr;
 
 use bimap::BiMap;
 use crypto::{scrypt::{scrypt, ScryptParams}};
@@ -10,15 +11,15 @@ use crate::db::Account;
 pub const SESSION_COOKIE_ID: &str = "session-id";
 const EMAIL_HEADER_ID: &str = "email";
 const PASSWORD_HEADER_ID: &str = "password";
+pub const HASH_SIZE: usize = 24;
 
-/// Not too sure if "keyring" is the correct terminology...
+
 /// This holds all the session ids that are currently active.
 pub struct Keyring {
     all: BiMap<String, Uuid>
 }
 
 impl Keyring {
-    const OUTPUT_SIZE: usize = 24;
 
     pub fn new() -> Self {
         Self {
@@ -28,8 +29,8 @@ impl Keyring {
      
     /// A centralized way to hash strings (but mostly just passwords)
     /// for the web api.
-    pub fn hash_string(input: &str) -> [u8; Self::OUTPUT_SIZE] {
-        let mut hashed_password = [0u8; Self::OUTPUT_SIZE];
+    pub fn hash_string(input: &str) -> [u8; HASH_SIZE] {
+        let mut hashed_password = [0u8; HASH_SIZE];
        
         // FIXME learn how to salt properly
         scrypt(
@@ -47,7 +48,7 @@ impl Keyring {
     /// If this attempt it successful it will return them a new [`Session`].
     fn login(&mut self, email: &str, password: &str) -> Option<Session> {
         // search the db for the account under that email.
-        match Account::get_users_hash(email) {
+        match Account::get_account_hash(email) {
             Some(stored_hash) => {
                 // then see if the password hashes match.
                 if Self::hash_string(password) == stored_hash[..] {
@@ -66,20 +67,9 @@ impl Keyring {
         self.all.remove_by_right(&session.uuid);
     }
     
-    /// Check if the session id you have is valid.
-    #[must_use]
-    fn is_valid_session(&self, session_id: &Session) -> bool {
-        self.is_valid_session_uuid(&session_id.uuid)
-    }
-    
     #[must_use]
     fn is_valid_session_uuid(&self, uuid: &Uuid) -> bool {
         self.get_email_by_session_uuid(uuid).is_some()
-    }
-    
-    /// Get the email of a user based on their session id.
-    pub fn get_email(&self, session_id: &Session) -> Option<String> {
-        self.get_email_by_session_uuid(&session_id.uuid)
     }
     
     fn get_email_by_session_uuid(&self, uuid: &Uuid) -> Option<String> {
@@ -90,7 +80,7 @@ impl Keyring {
 }
 
 #[derive(Copy, Clone, Eq, Hash, PartialEq, Debug)]
-/// A wrapper around Uuid so I can impl my own methods.
+/// A wrapper around [`uuid::Uuid`] so I can impl my own methods.
 pub struct Uuid {
     uuid: uuid::Uuid,
 }
@@ -176,7 +166,8 @@ impl<'r> FromRequest<'r> for Session {
             // Something above, has at this point, gone wrong.
 
             // TODO potentially shouldn't log in the user with the authenticate method.
-            // But at the same time there isn't really a reason to add complexity.
+            // But at the same time there isn't really a reason to add complexity in
+            // adding more authentication paths.
 
             // If they have both their email and password in the headers, log them in.
             if let Some(email) = req.headers().get_one(EMAIL_HEADER_ID) {

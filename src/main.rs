@@ -11,15 +11,12 @@ use rocket::{routes, tokio::sync::RwLock};
 async fn main() -> Result<(), rocket::Error> {
 
     dotenv().ok();
-
+    
     let _rocket = rocket::build()
         .mount("/", routes![
-            pages::submit_ticket,
             pages::login,
             pages::logout,
-            pages::create_user,
-            pages::assign_ticket,
-            pages::my_tickets
+            pages::create_account,
             ])
         // a hashmap of all logged in users
         .manage(RwLock::new(authentication::Keyring::new()))
