@@ -5,7 +5,7 @@ use redis::Commands;
 use rocket::{request::{FromRequest, self, Outcome}, Request, tokio::sync::RwLock, http::Status};
 use serde::Serialize;
 
-use crate::db::{Account, redis_connect};
+use crate::{db::{Account, redis_connect}};
 
 pub const SESSION_COOKIE_ID: &str = "session-id";
 const EMAIL_HEADER_ID: &str = "email";
@@ -23,8 +23,6 @@ pub trait KeyStorage {
     fn save(&mut self, session: &Session);
     /// Discard a session
     fn discard(&mut self, session: &Session);
-    /// Get the key by the value
-    // fn key_by_value(&self, uuid: &Uuid) -> Option<String>;
     /// Get the value by they key
     fn value_by_key(&self, uuid: &Uuid) -> Option<String>;
 }
@@ -32,12 +30,12 @@ pub trait KeyStorage {
 impl KeyStorage for redis::Connection {
     fn save(&mut self, session: &Session) {
         // TODO unwrap is not ok in production code 
-        let _: () = self.set(session.email.to_owned(), session.uuid.to_string()).unwrap();
+        let _: () = self.set( session.uuid.to_string(), session.email.to_owned()).unwrap();
     }
 
     fn discard(&mut self, session: &Session) {
         // TODO unwrap is not ok in production code 
-        let _: () = self.del(session.email.to_owned()).unwrap();
+        let _: () = self.del(session.uuid.to_string()).unwrap();
     }
 
     fn value_by_key(&self, uuid: &Uuid) -> Option<String> {
@@ -45,7 +43,10 @@ impl KeyStorage for redis::Connection {
         // So Ill just get a new connection lol
         match redis_connect().unwrap().get(uuid.to_string()) {
             Ok(e) => Some(e),
-            Err(_) => None,
+            Err(e) => {
+                println!("{:?}", e);
+                None
+            },
         }
     }
 
@@ -65,15 +66,12 @@ impl KeyStorage for HashMap<Uuid, String> {
     }
 }
 
-pub trait SendableKeys = KeyStorage + Send + Sync;
-pub type RwKeyring = RwLock<Keyring<dyn SendableKeys>>;
-
 /// This holds all the session ids that are currently active.
-pub struct Keyring<M> where M: SendableKeys + ?Sized {
+pub struct Keyring<M> where M: KeyStorage + ?Sized {
     pub ring: Box<M> 
 }
 
-impl<M> Keyring<M> where M: SendableKeys + ?Sized {
+impl<M> Keyring<M> where M: KeyStorage + ?Sized {
      
     /// A centralized way to hash strings (but mostly just passwords)
     /// for the web api.
@@ -155,7 +153,7 @@ pub struct Session {
 impl Session {
 
     /// This will return [`None`] if the uuid isn't registered in the keyring.
-    async fn new_from_keyring<M>(uuid: Uuid, keyring: &RwLock<Keyring<M>>) -> Option<Self> where M: SendableKeys + ?Sized {    
+    async fn new_from_keyring<M>(uuid: Uuid, keyring: &RwLock<Keyring<M>>) -> Option<Self> where M: KeyStorage + ?Sized {    
         if let Some(email) = keyring.read().await.get_email_by_uuid(&uuid) {
             return Some( Self { uuid, email } );
         }
@@ -191,7 +189,7 @@ impl<'r> FromRequest<'r> for Session {
     async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
 
         // Make get the keyring from rocket
-        if let Some(keyring) = req.rocket().state::<RwLock<Keyring<dyn SendableKeys>>>() {
+        if let Some(keyring) = req.rocket().state::<crate::ManagedState>() {
             
             // Check the user's cookies for a session id 
             if let Some(session_cookie) = req.cookies().get_private(SESSION_COOKIE_ID) {

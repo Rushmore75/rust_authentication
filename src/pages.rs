@@ -1,6 +1,7 @@
+
 use rocket::{get, response::status, http::{Cookie, CookieJar, Status}, State, post, serde::json::Json};
 
-use crate::{authentication::{Session, SESSION_COOKIE_ID, RwKeyring}, db::{NewAccount, Account}};
+use crate::{authentication::{Session, SESSION_COOKIE_ID}, db::{NewAccount, Account}};
 
 #[get("/login")]
 pub fn login(auth: Session, jar: &CookieJar) -> status::Accepted<&'static str> {
@@ -10,7 +11,7 @@ pub fn login(auth: Session, jar: &CookieJar) -> status::Accepted<&'static str> {
 }
 
 #[get("/logout")]
-pub async fn logout(auth: Session, keyring: &State<RwKeyring>, jar: &CookieJar<'_>) -> status::Accepted<&'static str> {
+pub async fn logout(auth: Session, keyring: &State<crate::ManagedState>, jar: &CookieJar<'_>) -> status::Accepted<&'static str> {
     keyring.write().await.logout(&auth);
     jar.remove_private(Cookie::named(SESSION_COOKIE_ID));
     status::Accepted(Some("logged out"))
