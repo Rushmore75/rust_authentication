@@ -1,18 +1,26 @@
+#![feature(trait_alias)]
+
 mod db;
 mod pages;
 mod schema;
 mod authentication;
 
-use std::env;
-
+use authentication::Keyring;
+use db::redis_connect;
 use dotenvy::dotenv;
+use redis::Commands;
 use rocket::{routes, tokio::sync::RwLock};
+
 
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
 
     dotenv().ok();
+    
+    let keyring = Keyring {
+        ring: Box::new(bimap::BiMap::new())
+    };
     
     let _rocket = rocket::build()
         .mount("/", routes![
@@ -21,7 +29,7 @@ async fn main() -> Result<(), rocket::Error> {
             pages::create_account,
             ])
         // a hashmap of all logged in users
-        .manage(RwLock::new(authentication::Keyring::new()))
+        .manage(RwLock::new(keyring))
         .launch()
         .await?;
     Ok(())

@@ -1,12 +1,12 @@
-
-use std::str::FromStr;
+use std::{str::{FromStr, Chars}, borrow::BorrowMut};
 
 use bimap::BiMap;
 use crypto::{scrypt::{scrypt, ScryptParams}};
+use redis::{Commands, ToRedisArgs, FromRedisValue};
 use rocket::{request::{FromRequest, self, Outcome}, Request, tokio::sync::RwLock, http::Status};
 use serde::Serialize;
 
-use crate::db::Account;
+use crate::db::{Account, redis_connect};
 
 pub const SESSION_COOKIE_ID: &str = "session-id";
 const EMAIL_HEADER_ID: &str = "email";
@@ -14,18 +14,61 @@ const PASSWORD_HEADER_ID: &str = "password";
 pub const HASH_SIZE: usize = 24;
 
 
-/// This holds all the session ids that are currently active.
-pub struct Keyring {
-    all: BiMap<String, Uuid>
+pub trait KeyStorage {
+    /// Save a new session to the storage
+    fn save(&mut self, session: &Session);
+    /// Discard a session
+    fn discard(&mut self, session: &Session);
+    /// Get the key by the value
+    // fn key_by_value(&self, uuid: &Uuid) -> Option<String>;
+    /// Get the value by they key
+    fn value_by_key(&self, uuid: &Uuid) -> Option<String>;
 }
 
-impl Keyring {
+impl KeyStorage for redis::Connection {
+    fn save(&mut self, session: &Session) {
+        // TODO unwrap is not ok in production code 
+        let _: () = self.set(session.email.to_owned(), session.uuid.to_string()).unwrap();
+    }
 
-    pub fn new() -> Self {
-        Self {
-            all: BiMap::<String, Uuid>::new()
+    fn discard(&mut self, session: &Session) {
+        // TODO unwrap is not ok in production code 
+        let _: () = self.del(session.email.to_owned()).unwrap();
+    }
+
+    fn value_by_key(&self, uuid: &Uuid) -> Option<String> {
+        // There is no reason that a get command needs it's self as mutable...
+        // So Ill just get a new connection lol
+        match redis_connect().unwrap().get(uuid.to_string()) {
+            Ok(e) => Some(e),
+            Err(_) => None,
         }
     }
+
+}
+impl KeyStorage for BiMap<Uuid, String> {
+    fn save(&mut self, session: &Session) {
+        self.insert(session.uuid, session.email.to_owned());
+    }
+
+    fn discard(&mut self, session: &Session) {
+        self.remove_by_left(&session.uuid);
+    }
+
+    fn value_by_key(&self, uuid: &Uuid) -> Option<String> {
+        self.get_by_left(uuid).cloned()
+    }
+    
+}
+
+pub trait SendableKeys = KeyStorage + Send + Sync;
+
+/// This holds all the session ids that are currently active.
+pub struct Keyring<M> where M: SendableKeys + ?Sized {
+    pub ring: Box<M> 
+}
+
+impl<M> Keyring<M> where M: SendableKeys + ?Sized {
      
     /// A centralized way to hash strings (but mostly just passwords)
     /// for the web api.
@@ -54,8 +97,9 @@ impl Keyring {
                 if Self::hash_string(password) == stored_hash[..] {
                     // generate them a user id
                     let user_id = Uuid::from(uuid::Uuid::new_v4());
-                    self.all.insert(email.to_string(), user_id);
-                    return Some(Session::new(user_id, email.to_owned()));
+                    let session = Session::new(user_id, email.to_owned());
+                    self.ring.save(&session);
+                    return Some(session);
                 } 
             },  
             None => println!("Please create a user for \"{}\" before trying to log in as them.", email),
@@ -64,18 +108,12 @@ impl Keyring {
     }
     
     pub fn logout(&mut self, session: &Session) {
-        self.all.remove_by_right(&session.uuid);
+        self.ring.discard(&session)
     }
-    
-    #[must_use]
-    fn is_valid_session_uuid(&self, uuid: &Uuid) -> bool {
-        self.get_email_by_session_uuid(uuid).is_some()
+   
+    pub fn get_email_by_uuid(&self, uuid: &Uuid) -> Option<String> {
+        self.ring.value_by_key(uuid)
     }
-    
-    fn get_email_by_session_uuid(&self, uuid: &Uuid) -> Option<String> {
-        self.all.get_by_right(&uuid).cloned()
-    }
-     
 
 }
 
@@ -112,8 +150,8 @@ pub struct Session {
 impl Session {
 
     /// This will return [`None`] if the uuid isn't registered in the keyring.
-    async fn new_from_keyring(uuid: Uuid, keyring: &rocket::tokio::sync::RwLock<Keyring>) -> Option<Self> {    
-        if let Some(email) = keyring.read().await.get_email_by_session_uuid(&uuid) {
+    async fn new_from_keyring<M>(uuid: Uuid, keyring: &RwLock<Keyring<M>>) -> Option<Self> where M: SendableKeys + ?Sized {    
+        if let Some(email) = keyring.read().await.get_email_by_uuid(&uuid) {
             return Some( Self { uuid, email } );
         }
         None
@@ -148,13 +186,13 @@ impl<'r> FromRequest<'r> for Session {
     async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
 
         // Make get the keyring from rocket
-        if let Some(keyring) = req.rocket().state::<RwLock<Keyring>>() {                    
+        if let Some(keyring) = req.rocket().state::<RwLock<Keyring<dyn SendableKeys>>>() {
             
             // Check the user's cookies for a session id 
             if let Some(session_cookie) = req.cookies().get_private(SESSION_COOKIE_ID) {
                 // Extract the cookie into a uuid
                 if let Ok(id) = uuid::Uuid::from_str(session_cookie.value()) {
-                    if keyring.read().await.is_valid_session_uuid(&Uuid::from(id)) {
+                    if keyring.read().await.get_email_by_uuid(&Uuid::from(id)).is_some() {
                         if let Some(session) = Session::new_from_keyring(Uuid::from(id), keyring).await {
                             println!("Authenticating via cookie");
                             // authenticate user

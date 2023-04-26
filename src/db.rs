@@ -1,13 +1,11 @@
 use std::env;
-use std::fmt::format;
 
 use diesel::prelude::*;
 use diesel::result::Error;
 use diesel::{PgConnection, Connection};
-use redis::Client;
 use serde::Deserialize;
 
-use crate::authentication;
+use crate::authentication::{self, SendableKeys};
 use crate::schema::{account, message, self};
 
 const REDIS_DATABASE_URL: &'static str = "REDIS_DATABASE_URL";
@@ -48,7 +46,7 @@ pub struct NewAccount<'a> {
 impl Account {
     pub fn new(account: NewAccount<'_>) -> Result<Self, Error> {
         let mut conn = establish_connection(); 
-        let hash = authentication::Keyring::hash_string(account.password);
+        let hash = authentication::Keyring::<dyn SendableKeys>::hash_string(account.password);
 
         #[derive(Insertable)]
         #[diesel(table_name = schema::account)]
