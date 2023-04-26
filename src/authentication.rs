@@ -1,8 +1,7 @@
-use std::{str::{FromStr, Chars}, borrow::BorrowMut};
+use std::{str::FromStr, collections::HashMap};
 
-use bimap::BiMap;
 use crypto::{scrypt::{scrypt, ScryptParams}};
-use redis::{Commands, ToRedisArgs, FromRedisValue};
+use redis::Commands;
 use rocket::{request::{FromRequest, self, Outcome}, Request, tokio::sync::RwLock, http::Status};
 use serde::Serialize;
 
@@ -13,7 +12,12 @@ const EMAIL_HEADER_ID: &str = "email";
 const PASSWORD_HEADER_ID: &str = "password";
 pub const HASH_SIZE: usize = 24;
 
-
+/// [`Keyring`] is written against generics using this trait. Implement
+/// it as you see fit to provide different options to Rocket for handling
+/// sessions.
+/// 
+/// 
+/// Current implementations use a [`std::collections::HashMap`] or Redis DB
 pub trait KeyStorage {
     /// Save a new session to the storage
     fn save(&mut self, session: &Session);
@@ -46,22 +50,23 @@ impl KeyStorage for redis::Connection {
     }
 
 }
-impl KeyStorage for BiMap<Uuid, String> {
+
+impl KeyStorage for HashMap<Uuid, String> {
     fn save(&mut self, session: &Session) {
         self.insert(session.uuid, session.email.to_owned());
     }
 
     fn discard(&mut self, session: &Session) {
-        self.remove_by_left(&session.uuid);
+        self.remove(&session.uuid);
     }
 
     fn value_by_key(&self, uuid: &Uuid) -> Option<String> {
-        self.get_by_left(uuid).cloned()
+        self.get(uuid).cloned()
     }
-    
 }
 
 pub trait SendableKeys = KeyStorage + Send + Sync;
+pub type RwKeyring = RwLock<Keyring<dyn SendableKeys>>;
 
 /// This holds all the session ids that are currently active.
 pub struct Keyring<M> where M: SendableKeys + ?Sized {

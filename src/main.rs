@@ -5,10 +5,10 @@ mod pages;
 mod schema;
 mod authentication;
 
+use std::collections::HashMap;
+
 use authentication::Keyring;
-use db::redis_connect;
 use dotenvy::dotenv;
-use redis::Commands;
 use rocket::{routes, tokio::sync::RwLock};
 
 
@@ -19,7 +19,7 @@ async fn main() -> Result<(), rocket::Error> {
     dotenv().ok();
     
     let keyring = Keyring {
-        ring: Box::new(bimap::BiMap::new())
+        ring: Box::new(HashMap::new())
     };
     
     let _rocket = rocket::build()
