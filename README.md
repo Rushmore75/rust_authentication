@@ -22,6 +22,13 @@ If it's thru the headers, it will look up the account in the Postgres database t
 ### Feature?
 You don't need a specific login method. Any time `Session` is used as a request guard it offers the opportunity for a client to login.
 
+# Running
+You can let your favorite ide run & debug it normally, but note that if you configure the launch you can use the `--features` flag to enable redis! Such as:
+```shell
+cargo run --features redis
+```
+By default it uses a hashmap.
+
 # Developing:
 You will need [diesel](https://diesel.rs/) installed to work with the ORM.
 
