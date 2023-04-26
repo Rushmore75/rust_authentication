@@ -1,17 +1,29 @@
 use std::env;
+use std::fmt::format;
 
 use diesel::prelude::*;
 use diesel::result::Error;
 use diesel::{PgConnection, Connection};
+use redis::Client;
 use serde::Deserialize;
 
 use crate::authentication;
 use crate::schema::{account, message, self};
 
+const REDIS_DATABASE_URL: &'static str = "REDIS_DATABASE_URL";
+const POSTGRES_DATABASE_URL: &'static str = "DATABASE_URL";
+
+pub fn redis_connect() -> Result<redis::Connection, redis::RedisError> {
+    let url = env::var(REDIS_DATABASE_URL).expect(&format!("{} must be set", REDIS_DATABASE_URL));
+    
+    let redis = redis::Client::open(url).expect("Can't connect to redis");
+    redis.get_connection()
+}
+
 pub fn establish_connection() -> PgConnection {
 
     // the env should be loaded into ram at this point, so there shouldn't be problems running this lots
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = env::var(POSTGRES_DATABASE_URL).expect(&format!("{} must be set!", POSTGRES_DATABASE_URL));
     
     PgConnection::establish(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
@@ -27,9 +39,9 @@ pub struct Account {
     password_hash: Vec<u8>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Copy, Clone)]
 pub struct NewAccount<'a> {
-    email: &'a str,
+    pub name: &'a str,
     password: &'a str
 }
 
@@ -46,7 +58,7 @@ impl Account {
         }
         
         let new = New {
-            email: account.email,
+            email: account.name,
             password_hash: Vec::from(hash),
         };
 

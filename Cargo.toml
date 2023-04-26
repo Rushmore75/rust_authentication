@@ -14,3 +14,4 @@ rust-crypto = "0.2"
 # v4 is uuids from random information
 uuid = { version = "1", features = ["v4", "fast-rng"] }
 bimap = "0.6"
+redis = "0.22"

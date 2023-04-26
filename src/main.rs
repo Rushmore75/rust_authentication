@@ -3,6 +3,8 @@ mod pages;
 mod schema;
 mod authentication;
 
+use std::env;
+
 use dotenvy::dotenv;
 use rocket::{routes, tokio::sync::RwLock};
 

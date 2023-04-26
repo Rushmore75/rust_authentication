@@ -1,6 +1,6 @@
 use rocket::{get, response::status, http::{Cookie, CookieJar, Status}, tokio::sync::RwLock, State, post, serde::json::Json};
 
-use crate::{authentication::{Session, Keyring, SESSION_COOKIE_ID}, db::{NewAccount, Account}};
+use crate::{authentication::{Session, SESSION_COOKIE_ID, Keyring}, db::{NewAccount, Account}};
 
 #[get("/login")]
 pub fn login(auth: Session, jar: &CookieJar) -> status::Accepted<&'static str> {
@@ -16,11 +16,25 @@ pub async fn logout(auth: Session, keyring: &State<RwLock<Keyring>>, jar: &Cooki
     status::Accepted(Some("logged out"))
 }
 
+
 #[post("/create_account", data="<body>")]
-pub fn create_account(body: Json<NewAccount>) -> status::Custom<&'static str>{
+pub fn create_account(body: Json<NewAccount>) -> status::Custom<String>{
     // TODO needs a good account approval method
     match Account::new(body.0) {
-        Ok(_) => status::Custom(Status::Accepted, "Created"),
-        Err(_) => status::Custom(Status::InternalServerError, "Well heck."),        
+        Ok(_) => status::Custom(Status::Accepted, "Created".to_owned()),
+        Err(e) => {
+            match e {
+                diesel::result::Error::DatabaseError(error_kind, _) => {
+                    match error_kind {
+                        diesel::result::DatabaseErrorKind::UniqueViolation => {
+                            return status::Custom(Status::Conflict, format!("\"{}\" is taken.", body.name));
+                        },
+                        _ => { },
+                    };
+                },
+                _ => { },
+            };
+            status::Custom(Status::InternalServerError, "Well heck.".to_owned())
+        },
     }
 }
