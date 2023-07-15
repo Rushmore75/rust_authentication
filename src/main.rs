@@ -21,31 +21,22 @@ pub type ManagedState = RwLock<Keyring<redis::Connection>>;
 async fn main() -> Result<(), rocket::Error> {
 
     dotenv().ok();
+
+    #[cfg(feature = "redis")]
+    let state = RwLock::new(Keyring { ring: Box::new(db::redis_connect().unwrap()) } );
+
+    #[cfg(not(feature = "redis"))]
+    let state = RwLock::new(Keyring { ring: Box::new(HashMap::<Uuid, String>::new()) } );
     
-    if cfg!(feature = "redis") {
-        println!("Using Redis!");
-        let state = RwLock::new(Keyring { ring: Box::new(db::redis_connect().unwrap()) } );
-        let _rocket = rocket::build()
-            .manage(state)
-            .mount("/", routes![
-                pages::login,
-                pages::logout,
-                pages::create_account,
-                ])
-            .launch()
-            .await?;
-    } else {
-        println!("Using local.");
-        let state = RwLock::new(Keyring { ring: Box::new(HashMap::<Uuid, String>::new()) } );
-        let _rocket = rocket::build()
-            .manage(state)
-            .mount("/", routes![
-                pages::login,
-                pages::logout,
-                pages::create_account,
-                ])
-            .launch()
-            .await?;
-    }
+    let _rocket = rocket::build()
+        .manage(state)
+        .mount("/", routes![
+            pages::login,
+            pages::logout,
+            pages::create_account,
+            ])
+        .launch()
+        .await?;
+
     Ok(())
 }
