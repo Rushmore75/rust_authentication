@@ -1,14 +1,14 @@
 use std::{str::FromStr, collections::HashMap};
 
-use crypto::{scrypt::{scrypt, ScryptParams}};
+use crypto::scrypt::{scrypt, ScryptParams};
 use redis::Commands;
 use rocket::{request::{FromRequest, self, Outcome}, Request, tokio::sync::RwLock, http::Status};
 use serde::Serialize;
 
-use crate::{db::{Account, redis_connect}};
+use crate::db::{Account, redis_connect};
 
 pub const SESSION_COOKIE_ID: &str = "session-id";
-const EMAIL_HEADER_ID: &str = "email";
+const USERNAME_HEADER_ID: &str = "email";
 const PASSWORD_HEADER_ID: &str = "password";
 pub const HASH_SIZE: usize = 24;
 
@@ -179,28 +179,29 @@ impl<'r> FromRequest<'r> for Session {
 
     /// # Authenticate User
     /// This will try to authenticate a user via their session id cookie. If this fails
-    /// it will fall back to trying to read the `EMAIL_HEADER_ID` and `PASSWORD_HEADER_ID`
+    /// it will fall back to trying to read the `USERNAME_HEADER_ID` and `PASSWORD_HEADER_ID`
     /// (as each defined as const values) from the user's header, if these exist it will
     /// try to authenticate them that way.
     /// # Return
     /// If the function is successful in authenticating the user it will return their 
     /// session id.
     /// If the function is unsuccessful it will return an error.
-    async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
 
-        // Make get the keyring from rocket
-        if let Some(keyring) = req.rocket().state::<crate::ManagedState>() {
+        // Get the keyring from rocket
+        if let Some(keyring) = request.rocket().state::<crate::ManagedState>() {
             
             // Check the user's cookies for a session id 
-            if let Some(session_cookie) = req.cookies().get_private(SESSION_COOKIE_ID) {
+            if let Some(session_cookie) = request.cookies().get_private(SESSION_COOKIE_ID) {
                 // Extract the cookie into a uuid
                 if let Ok(id) = uuid::Uuid::from_str(session_cookie.value()) {
-                    if keyring.read().await.get_email_by_uuid(&Uuid::from(id)).is_some() {
-                        if let Some(session) = Session::new_from_keyring(Uuid::from(id), keyring).await {
-                            println!("Authenticating via cookie");
-                            // authenticate user
-                            return Outcome::Success( session );
-                        }
+                    // Try to get a new session object for the request.
+                    // If the session id given by the user is invalid this will return `None` and
+                    // thus fall down and try to authenticate the user via other methods.
+                    if let Some(session) = Session::new_from_keyring(Uuid::from(id), keyring).await {
+                        println!("Authenticating via cookie");
+                        // authenticate user
+                        return Outcome::Success( session );
                     }
                 }    
             };
@@ -211,8 +212,8 @@ impl<'r> FromRequest<'r> for Session {
             // adding more authentication paths.
 
             // If they have both their email and password in the headers, log them in.
-            if let Some(email) = req.headers().get_one(EMAIL_HEADER_ID) {
-                if let Some(password) = req.headers().get_one(PASSWORD_HEADER_ID) {
+            if let Some(email) = request.headers().get_one(USERNAME_HEADER_ID) {
+                if let Some(password) = request.headers().get_one(PASSWORD_HEADER_ID) {
                     if let Some(id) = keyring.write().await.login(email, password) {
                         println!("Authenticating via user/pass combo");
                         // TODO add a way to tell the user to change from email / password method
