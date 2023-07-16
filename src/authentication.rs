@@ -114,7 +114,7 @@ impl<M> Keyring<M> where M: KeyStorage + ?Sized {
         self.ring.discard(&session)
     }
    
-    pub fn get_email_by_uuid(&self, uuid: &Uuid) -> Option<String> {
+    pub fn get_username_by_uuid(&self, uuid: &Uuid) -> Option<String> {
         self.ring.value_by_key(uuid)
     }
 
@@ -154,7 +154,7 @@ impl Session {
 
     /// This will return [`None`] if the uuid isn't registered in the keyring.
     async fn new_from_keyring<M>(uuid: Uuid, keyring: &RwLock<Keyring<M>>) -> Option<Self> where M: KeyStorage + ?Sized {    
-        if let Some(email) = keyring.read().await.get_email_by_uuid(&uuid) {
+        if let Some(email) = keyring.read().await.get_username_by_uuid(&uuid) {
             return Some( Self { uuid, email } );
         }
         None
@@ -207,14 +207,13 @@ impl<'r> FromRequest<'r> for Session {
             };
             // Something above, has at this point, gone wrong.
 
-            // TODO potentially shouldn't log in the user with the authenticate method.
-            // But at the same time there isn't really a reason to add complexity in
-            // adding more authentication paths.
+            // This allows the user to "login" on any abatrary http request that requires
+            // authentication. Don't really see that as a problem but it seems odd.
 
             // If they have both their email and password in the headers, log them in.
-            if let Some(email) = request.headers().get_one(USERNAME_HEADER_ID) {
+            if let Some(username) = request.headers().get_one(USERNAME_HEADER_ID) {
                 if let Some(password) = request.headers().get_one(PASSWORD_HEADER_ID) {
-                    if let Some(id) = keyring.write().await.login(email, password) {
+                    if let Some(id) = keyring.write().await.login(username, password) {
                         println!("Authenticating via user/pass combo");
                         // TODO add a way to tell the user to change from email / password method
                         // to the session id method
@@ -222,14 +221,51 @@ impl<'r> FromRequest<'r> for Session {
                     }
                 }
             }
-        };
 
-        // Logging in with a session id and email/password combo have both failed        
-        Outcome::Failure((Status::Unauthorized, LoginError::Error))
+
+            match request.headers().get_one(USERNAME_HEADER_ID) {
+                Some(username) => {
+                    match request.headers().get_one(PASSWORD_HEADER_ID) {
+                        Some(password) => {
+                            match keyring.write().await.login(username, password) {
+                                Some(id) => {
+                                    println!("Authenticating via user/pass combo");
+                                    // TODO tell the client to set the session id so they can stop
+                                    // using username / password combo.
+                                    Outcome::Success( id )
+                                },
+                                None => LoginError::DatabaseError.fail()
+                            }
+                        },
+                        None => LoginError::WrongPassword.fail()
+                    }
+                },
+                None => LoginError::NoAccount.fail()
+            }
+        } else {
+            // Logging in with a session id and email/password combo have both failed        
+            LoginError::DatabaseError.fail() 
+        }
     }
 }
 
 #[derive(Debug)]
 pub enum LoginError {
-    Error,
+    DatabaseError,
+    NoAccount,
+    WrongPassword,
+}
+
+impl LoginError {
+    /// Quickly fail an Outcome with pre-set Statuses for each.
+    /// Will never return a session.
+    fn fail(self) -> Outcome<Session, Self> {
+        // Set your favorite Statuses here.
+        let status = match self {
+            LoginError::DatabaseError   => Status::InternalServerError,
+            LoginError::NoAccount       => Status::Unauthorized,
+            LoginError::WrongPassword   => Status::Unauthorized,
+        };
+        Outcome::Failure((status, self))
+    }
 }
