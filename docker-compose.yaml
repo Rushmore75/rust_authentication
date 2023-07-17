@@ -1,21 +1,24 @@
 version: '3.1'
-name: notification-relay 
+name: rust_authentication
 services:
   db:
+    container_name:  rust_auth_postgres
     image: postgres
     restart: always
     environment:
       POSTGRES_USER: admin 
       POSTGRES_PASSWORD: example_password 
-      POSTGRES_DB: notifications
+      POSTGRES_DB: accounts
 
   adminer:
+    container_name: rust_auth_adminer
     image: adminer
     restart: always
     ports:
       - 8081:8080
         
   redis:
+    container_name: rust_auth_redis
     image: redis
     restart: always
     ports:
