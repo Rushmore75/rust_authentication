@@ -1,14 +1,15 @@
-
 use rocket::{get, response::status, http::{Cookie, CookieJar, Status}, State, post, serde::json::Json};
 
 use crate::auth::authentication::{Session, SESSION_COOKIE_ID};
 use crate::db::{NewAccount, Account};
 
+/// Realistically, any path requiring `Session` with do the same login attempts.
 #[get("/login")]
 pub fn login(_auth: Session) -> status::Accepted<&'static str> {
     status::Accepted(Some("Logged in"))
 }
 
+/// Logs out user. Real supprising I know.
 #[get("/logout")]
 pub async fn logout(auth: Session, keyring: &State<crate::ManagedState>, jar: &CookieJar<'_>) -> status::Accepted<&'static str> {
     keyring.write().await.logout(&auth);
@@ -16,6 +17,8 @@ pub async fn logout(auth: Session, keyring: &State<crate::ManagedState>, jar: &C
     status::Accepted(Some("logged out"))
 }
 
+/// Really, this is just an example, as you will probably want some other account authentication
+/// method than just letting people create accounts willy-nilly.
 #[post("/create_account", data="<body>")]
 pub fn create_account(body: Json<NewAccount>) -> status::Custom<String> {
     // TODO needs a good account approval method

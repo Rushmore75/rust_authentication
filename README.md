@@ -1,33 +1,27 @@
 # What is this?
-This is [another one](https://github.com/Rushmore75/rust_server_template) of my templates for [Rust Rocket](https://rocket.rs), the best server framework you could ask for. While trying to keep it as simple as possible it allows you to take control of the powers of Rocket's request guards. Meaning you only need change your routes from this:
+This is a library for [Rust Rocket](https://rocket.rs), the best server framework you could ask for. While trying to keep it as simple as possible it allows you to take control of the powers of Rocket's request guards. Meaning you only need change your routes from this:
 ```rust
 #[get("/super_secret_page")]
-pub fn login() -> status::Accepted<&'static str> {
-    status::Accepted(Some("Secret data!"))
+pub fn secret_data() -> status::Accepted<&'static str> {
+    status::Accepted(Some("Secret data can be seen by anyone!"))
 }
 ```
 to this
 ```rust
 #[get("/super_secret_page")]
-pub fn login(_: Session) -> status::Accepted<&'static str> {
-    status::Accepted(Some("Secret data!"))
+pub fn secret_data(_session: Session) -> status::Accepted<&'static str> {
+    status::Accepted(Some("Secret data is only sent to someone who has a valid account!"))
 }
 ```
-and it will automatically check the client's cookie jar and headers for some form of authentication. This authentication either being from the cookie: a session id, or from the headers: username / password combo.
+and it will automatically check the client's cookie jar and headers for some form of authentication. This authentication either being from the cookie, holding a session id, or from the headers, a username / password combo.
 
-If it's thru the session id method, it will check the current keyring to see if that session is valid. (This will eventually get moved to [Redis](https://redis.io/) or similar.)
+If it's thru the session id method, it will check the current keyring to see if that session is valid. (This optionally is [Redis](https://redis.io/) default is a local Hashmap.)
 
-If it's thru the headers, it will look up the account in the Postgres database to retrieve the stored hash, it will then hash the current password and see if it's a match. If it is, a cookie will be givin back to the client so it can login that way from now on.
+If it's thru the headers, it will look up the account in the Postgres database to retrieve the stored hash, it will then hash the current password and see if it's a match. If it is, a cookie will be givin back to the client so it can login via cookie from now on.
 
-### Feature?
-You don't need a specific login method. Any time `Session` is used as a request guard it offers the opportunity for a client to login.
-
-# Running
-You can let your favorite ide run & debug it normally, but note that if you configure the launch you can use the `--features` flag to enable redis! Such as:
-```shell
-cargo run --features redis
-```
-By default it uses a hashmap.
+### Features?
+* You don't need a specific login method. Any time `Session` is used as a request guard it offers the opportunity for a client to login.
+* Optionally uses Redis to hold user's login state, allowing for horizontal scalability. (`cargo build --features redis`)
 
 # Developing:
 You will need [diesel](https://diesel.rs/) installed to work with the ORM.
