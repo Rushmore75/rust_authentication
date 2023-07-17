@@ -5,8 +5,8 @@ use diesel::result::Error;
 use diesel::{PgConnection, Connection};
 use serde::Deserialize;
 
-use crate::authentication::{self, KeyStorage};
-use crate::schema::{account, message, self};
+use crate::auth::keyring::{Keyring, KeyStorage};
+use crate::schema::{account, self};
 
 const REDIS_DATABASE_URL: &'static str = "REDIS_DATABASE_URL";
 const POSTGRES_DATABASE_URL: &'static str = "DATABASE_URL";
@@ -31,6 +31,7 @@ pub fn establish_connection() -> PgConnection {
 //             Account 
 //=======================================
 #[derive(Queryable)]
+#[allow(dead_code)]
 pub struct Account {
     id: i32,
     email: String,
@@ -46,7 +47,7 @@ pub struct NewAccount<'a> {
 impl Account {
     pub fn new(account: NewAccount<'_>) -> Result<Self, Error> {
         let mut conn = establish_connection(); 
-        let hash = authentication::Keyring::<dyn KeyStorage>::hash_string(account.password);
+        let hash = Keyring::<dyn KeyStorage>::hash_string(account.password);
 
         #[derive(Insertable)]
         #[diesel(table_name = schema::account)]
