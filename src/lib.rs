@@ -19,6 +19,7 @@ pub type ManagedState = RwLock<Keyring<HashMap<Uuid, String>>>;
 #[cfg(feature = "redis")]
 pub type ManagedState = RwLock<Keyring<redis::Connection>>;
 
+/// Generate a Keyring to be used by your Rocket instance.
 pub fn get_state() -> ManagedState {
     #[cfg(feature = "redis")]
     return RwLock::new(Keyring { ring: Box::new(db::redis_connect().unwrap()) } );
