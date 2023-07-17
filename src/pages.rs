@@ -5,10 +5,8 @@ use crate::auth::authentication::{Session, SESSION_COOKIE_ID};
 use crate::db::{NewAccount, Account};
 
 #[get("/login")]
-pub fn login(auth: Session, jar: &CookieJar) -> status::Accepted<&'static str> {
-    jar.add_private(Cookie::new(SESSION_COOKIE_ID, auth.uuid.to_string()));
+pub fn login(_auth: Session) -> status::Accepted<&'static str> {
     status::Accepted(Some("Logged in"))
-    
 }
 
 #[get("/logout")]

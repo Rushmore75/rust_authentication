@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use rocket::{request::{FromRequest, self, Outcome}, Request, tokio::sync::RwLock, http::Status};
+use rocket::{request::{FromRequest, self, Outcome}, Request, tokio::sync::RwLock, http::{Status, Cookie}};
 use serde::Serialize;
 
 use super::keyring::{Keyring, KeyStorage};
@@ -76,6 +76,10 @@ impl<'r> FromRequest<'r> for Session {
     /// session id.
     /// If the function is unsuccessful it will return an error.
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+        
+        fn set_cookie(session: &Session, jar: &rocket::http::CookieJar) {
+            jar.add_private(Cookie::new(SESSION_COOKIE_ID, session.uuid.to_string()));
+        }
 
         // Get the keyring from rocket
         if let Some(keyring) = request.rocket().state::<crate::ManagedState>() {
@@ -89,6 +93,9 @@ impl<'r> FromRequest<'r> for Session {
                     // thus fall down and try to authenticate the user via other methods.
                     if let Some(session) = Session::new_from_keyring(Uuid::from(id), keyring).await {
                         println!("Authenticating via cookie");
+                        
+                        // Add the session to their cookie jar.
+                        set_cookie(&session, request.cookies());
                         // authenticate user
                         return Outcome::Success( session );
                     }
@@ -98,20 +105,6 @@ impl<'r> FromRequest<'r> for Session {
 
             // This allows the user to "login" on any abatrary http request that requires
             // authentication. Don't really see that as a problem but it seems odd.
-
-            // If they have both their email and password in the headers, log them in.
-            if let Some(username) = request.headers().get_one(USERNAME_HEADER_ID) {
-                if let Some(password) = request.headers().get_one(PASSWORD_HEADER_ID) {
-                    if let Some(id) = keyring.write().await.login(username, password) {
-                        println!("Authenticating via user/pass combo");
-                        // TODO add a way to tell the user to change from email / password method
-                        // to the session id method
-                        return Outcome::Success( id );
-                    }
-                }
-            }
-
-
             match request.headers().get_one(USERNAME_HEADER_ID) {
                 Some(username) => {
                     match request.headers().get_one(PASSWORD_HEADER_ID) {
@@ -119,7 +112,7 @@ impl<'r> FromRequest<'r> for Session {
                             match keyring.write().await.login(username, password) {
                                 Some(id) => {
                                     println!("Authenticating via user/pass combo");
-                                    // TODO tell the client to set the session id so they can stop
+                                    set_cookie(&id, request.cookies());
                                     // using username / password combo.
                                     Outcome::Success( id )
                                 },
