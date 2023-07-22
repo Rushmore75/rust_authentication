@@ -7,8 +7,9 @@ mod auth;
 
 pub mod pages;
 
-use std::collections::HashMap;
+pub use auth::authentication::Session;
 
+use std::collections::HashMap;
 use crate::auth::keyring::Keyring;
 use auth::authentication::Uuid;
 use rocket::tokio::sync::RwLock;
