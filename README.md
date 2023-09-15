@@ -1,3 +1,6 @@
+# NOTE!
+This isn't not secure *yet*. This message will be removed when it is.
+
 # What is this?
 This is a library for [Rust Rocket](https://rocket.rs), the best server framework you could ask for. While trying to keep it as simple as possible it allows you to take control of the powers of Rocket's request guards. Meaning you only need change your routes from this:
 ```rust
