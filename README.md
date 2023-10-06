@@ -2,6 +2,7 @@
 This isn't not secure *yet*. This message will be removed when it is.
 ## TODOs
 - [ ] CSRF protection, currently just uses a session id
+- [ ] Proper password hashing + salt
 
 # What is this?
 This is a library for [Rust Rocket](https://rocket.rs), the best server framework you could ask for. While trying to keep it as simple as possible it allows you to take control of the powers of Rocket's request guards. Meaning you only need change your routes from this:
