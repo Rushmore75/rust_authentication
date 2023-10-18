@@ -9,7 +9,7 @@ pub fn login(_auth: Session) -> status::Accepted<&'static str> {
     status::Accepted(Some("Logged in"))
 }
 
-/// Logs out user. Real supprising I know.
+/// Logs out user. Real surprising I know.
 #[get("/logout")]
 pub async fn logout(auth: Session, keyring: &State<crate::ManagedState>, jar: &CookieJar<'_>) -> status::Accepted<&'static str> {
     keyring.write().await.logout(&auth);
@@ -21,7 +21,7 @@ pub async fn logout(auth: Session, keyring: &State<crate::ManagedState>, jar: &C
 /// method than just letting people create accounts willy-nilly.
 #[post("/create_account", data="<body>")]
 pub fn create_account(body: Json<NewAccount>) -> status::Custom<String> {
-    // TODO Clense the incoming data from SQL injections. (Diesel might do this already)
+    // TODO Cleanse the incoming data from SQL injections. (Diesel might do this already)
     // TODO needs a good account approval method
     match Account::new(body.0) {
         Ok(_) => status::Custom(Status::Accepted, "Created".to_owned()),
