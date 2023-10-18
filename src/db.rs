@@ -1,5 +1,7 @@
 use std::env;
 
+use argon2::PasswordHash;
+use argon2::password_hash::{Encoding, PasswordHashString};
 use diesel::prelude::*;
 use diesel::result::Error;
 use diesel::{PgConnection, Connection};
@@ -19,9 +21,7 @@ pub fn redis_connect() -> Result<redis::Connection, redis::RedisError> {
 }
 
 pub fn establish_connection() -> PgConnection {
-
     // FIXME This method has some unwraps and expects, this is bad for a lib to have! Fix it.
-    
     dotenvy::dotenv().unwrap();
 
     // the env should be loaded into ram at this point, so there shouldn't be problems running this lots
@@ -51,8 +51,9 @@ pub struct NewAccount<'a> {
 impl Account {
     pub fn new(account: NewAccount<'_>) -> Result<Self, Error> {
         let mut conn = establish_connection(); 
-        let hash = Keyring::<dyn KeyStorage>::hash_string(account.password);
+        let hash = Keyring::<dyn KeyStorage>::hash_password(account.password);
 
+        // for inserting new values into account
         #[derive(Insertable)]
         #[diesel(table_name = schema::account)]
         struct New<'a> {
@@ -62,9 +63,8 @@ impl Account {
         
         let new = New {
             email: account.name,
-            password_hash: Vec::from(hash),
+            password_hash: Vec::from(hash.to_string()),
         };
-
 
         let result = diesel::insert_into(account::table)
             .values(new)
@@ -72,7 +72,7 @@ impl Account {
         result
     }
     
-    pub fn get_account_hash(mail: &str) -> Option<Vec<u8>> {
+    pub fn get_account_hash(mail: &str) -> Option<PasswordHashString> {
         use crate::schema::account::dsl::*;
 
         let results: Vec<Self> = account 
@@ -81,8 +81,15 @@ impl Account {
             .expect("Error loading accounts");
 
         match results.into_iter().next() {
-            Some(x) => Some(x.password_hash),
-            None => None,
+            Some(sql_results) => {
+                let hash_string: String = sql_results.password_hash.iter().map(|f| *f as char).collect();
+                // IDK what encoding is autally used
+                if let Ok(hash) = argon2::PasswordHash::parse(&hash_string, Encoding::B64) {
+                    return Some(hash.serialize())
+                }
+            },
+            None => {},
         }
+        None
     }
 }

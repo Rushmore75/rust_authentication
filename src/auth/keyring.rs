@@ -1,8 +1,19 @@
 use std::collections::HashMap;
-use crypto::scrypt::{scrypt, ScryptParams};
 use redis::Commands;
 use crate::db::{Account, redis_connect};
 use super::authentication::{Session, Uuid};
+use argon2::{
+    PasswordHasher,
+    PasswordVerifier,
+    Algorithm,
+    Argon2,
+    Params, 
+    Version,
+    password_hash::{rand_core::OsRng, PasswordHashString},
+    password_hash::{SaltString, Encoding}, PasswordHash,
+};
+
+
 
 pub const HASH_SIZE: usize = 24;
 
@@ -66,41 +77,44 @@ pub struct Keyring<M> where M: KeyStorage + ?Sized {
 }
 
 impl<M> Keyring<M> where M: KeyStorage + ?Sized {
-     
-    /// A centralized way to hash strings (but mostly just passwords)
+    /// A centralized way to hash passwords
     /// for the web api.
-    pub fn hash_string(input: &str) -> [u8; HASH_SIZE] {
-        let mut hashed_password = [0u8; HASH_SIZE];
-       
-        // FIXME learn how to salt properly
-        scrypt(
-            input.as_bytes(),
-            &[1, 2, 4, 5],
-            &ScryptParams::new(5, 5, 5),
-            &mut hashed_password
-        );
+    pub fn hash_password(password: &str) -> PasswordHashString {
+                // as defiend in: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#argon2id
+        let params = match Params::new(3<<12, 3, Params::DEFAULT_P_COST, None) {
+            Ok(r) => r,
+            Err(_) => panic!("Hard-coded values a wrong?\nFailed to create argon2 object."),
+        };
+        let argon = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
-        hashed_password
-    } 
+        let salt = SaltString::generate(OsRng);
+        let hash = match argon.hash_password(password.as_bytes(), &salt) {
+            Ok(k) => k,
+            Err(_) => panic!("Crate-defined defaults threw an error whilst creating argon2 hash."),
+        };
+        hash.serialize()
+   } 
 
     /// # Login
     /// Will try to log the user designated by the given username and password.
     /// If this attempt it successful it will return them a new [`Session`].
     pub fn login(&mut self, username: &str, password: &str) -> Option<Session> {
         // search the db for the account under that username.
-        match Account::get_account_hash(username) {
-            Some(stored_hash) => {
-                // then see if the password hashes match.
-                if Self::hash_string(password) == stored_hash[..] {
-                    // generate them a user id
-                    let user_id = Uuid::from(uuid::Uuid::new_v4());
-                    let session = Session::new(user_id, username.to_owned());
-                    self.ring.save(&session);
-                    return Some(session);
-                } 
-            },  
-            None => println!("Please create a user \"{}\" before trying to log in as them.", username),
-        };
+        if let Some(stored_hash) = Account::get_account_hash(username) {
+            // then see if the password hashes match.
+            let argon =  Argon2::default();
+            if argon.verify_password(password.as_bytes(), &stored_hash.password_hash()).is_ok() {
+                // generate them a user id
+                let user_id = Uuid::from(uuid::Uuid::new_v4()); // FIXME this may not be random
+                                                                // enough. If someone could predict
+                                                                // the seed, then they would get
+                                                                // the session ID for the next
+                                                                // person who logs in.
+                let session = Session::new(user_id, username.to_owned());
+                self.ring.save(&session);
+                return Some(session);
+            }
+        }
         None
     }
     
