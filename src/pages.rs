@@ -24,20 +24,10 @@ pub fn create_account(body: Json<NewAccount>) -> status::Custom<String> {
     // TODO Cleanse the incoming data from SQL injections. (Diesel might do this already)
     // TODO needs a good account approval method
     match Account::new(body.0) {
-        Ok(_) => status::Custom(Status::Accepted, "Created".to_owned()),
-        Err(e) => {
-            match e {
-                diesel::result::Error::DatabaseError(error_kind, _) => {
-                    match error_kind {
-                        diesel::result::DatabaseErrorKind::UniqueViolation => {
-                            return status::Custom(Status::Conflict, format!("\"{}\" is taken.", body.name));
-                        },
-                        _ => { },
-                    };
-                },
-                _ => { },
-            };
-            status::Custom(Status::InternalServerError, "Well heck.".to_owned())
+        Ok(_) => status::Custom(Status::Accepted, "Created".to_string()),
+        Err(e) => match e {
+            crate::db::AccountCreationError::UsernameAlreadyTaken => return status::Custom(Status::Conflict, format!("'{}' is taken", body.name)),
+            crate::db::AccountCreationError::Unknown => return status::Custom(Status::InternalServerError, "Internal Error - Could not create account.".to_string())
         },
     }
 }

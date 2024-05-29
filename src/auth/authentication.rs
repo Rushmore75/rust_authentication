@@ -2,12 +2,12 @@ use std::str::FromStr;
 
 use rocket::{request::{FromRequest, self, Outcome}, Request, tokio::sync::RwLock, http::{Status, Cookie}};
 use serde::Serialize;
-
+use tracing::*;
 use super::keyring::{Keyring, KeyStorage};
 
 pub const SESSION_COOKIE_ID: &str = "session-id";
-const USERNAME_HEADER_ID: &str = "email";
-const PASSWORD_HEADER_ID: &str = "password";
+pub const USERNAME_HEADER_ID: &str = "email";
+pub const PASSWORD_HEADER_ID: &str = "password";
 
 #[derive(Copy, Clone, Eq, Hash, PartialEq, Debug)]
 /// A wrapper around [`uuid::Uuid`] so I can impl my own methods.
@@ -92,7 +92,7 @@ impl<'r> FromRequest<'r> for Session {
                     // If the session id given by the user is invalid this will return `None` and
                     // thus fall down and try to authenticate the user via other methods.
                     if let Some(session) = Session::new_from_keyring(Uuid::from(id), keyring).await {
-                        println!("Authenticating via cookie");
+                        trace!("Authenticating via cookie");
                         
                         // Add the session to their cookie jar.
                         set_cookie(&session, request.cookies());
@@ -111,7 +111,7 @@ impl<'r> FromRequest<'r> for Session {
                         Some(password) => {
                             match keyring.write().await.login(username, password) {
                                 Some(id) => {
-                                    println!("Authenticating via user/pass combo");
+                                    trace!("Authenticating via user/pass combo");
                                     set_cookie(&id, request.cookies());
                                     // using username / password combo.
                                     Outcome::Success( id )

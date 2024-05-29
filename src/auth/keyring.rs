@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use redis::Commands;
+use tracing::error;
 use crate::db::{Account, redis_connect};
 use super::authentication::{Session, Uuid};
 use argon2::{
@@ -49,7 +50,7 @@ impl KeyStorage for redis::Connection {
         match redis_connect().unwrap().get(uuid.to_string()) {
             Ok(e) => Some(e),
             Err(e) => {
-                println!("{:?}", e);
+                error!("{:?}", e);
                 None
             },
         }

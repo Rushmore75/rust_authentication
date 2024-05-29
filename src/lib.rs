@@ -1,4 +1,5 @@
 #![feature(trait_alias)]
+#![feature(io_error_more)]
 
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::todo)]

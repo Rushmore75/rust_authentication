@@ -5,10 +5,13 @@ edition = "2021"
 
 [features]
 redis = []
+postgres = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-diesel = { version = "2.0.0", features = ["postgres"] }
+diesel = { version = "2.0", features = ["postgres"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+
 dotenvy = "^0.15"
 rocket = { version = "0.5", features = ["json", "secrets"]}
 serde = { version = "1.0", features = ["derive"] }
@@ -16,3 +19,6 @@ argon2 = "^0.5"
 # v4 is uuids from random information
 uuid = { version = "1", features = ["v4", "fast-rng"] }
 redis = "0.25"
+
+tracing = "0.1.40"
+# tracing-subscriber = { version = "0.3", features = ["env-filter"] }
