@@ -26,8 +26,8 @@ pub fn create_account(body: Json<NewAccount>) -> status::Custom<String> {
     match Account::new(body.0) {
         Ok(_) => status::Custom(Status::Accepted, "Created".to_string()),
         Err(e) => match e {
-            crate::db::AccountCreationError::UsernameAlreadyTaken => return status::Custom(Status::Conflict, format!("'{}' is taken", body.name)),
-            crate::db::AccountCreationError::Unknown => return status::Custom(Status::InternalServerError, "Internal Error - Could not create account.".to_string())
+            crate::db::AccountCreationError::UsernameAlreadyTaken => status::Custom(Status::Conflict, format!("'{}' is taken", body.name)),
+            _ => status::Custom(Status::InternalServerError, "Internal Error - Could not create account.".to_string())
         },
     }
 }

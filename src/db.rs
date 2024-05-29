@@ -2,22 +2,27 @@ use std::env;
 
 use argon2::password_hash::{Encoding, PasswordHashString};
 use diesel::prelude::*;
-use diesel::result::Error;
-use diesel::PgConnection;
-use rusqlite::params;
 use serde::Deserialize;
-
+use tracing::*;
 use crate::auth::keyring::{KeyStorage, Keyring};
+
+#[cfg(not(feature = "postgres"))]
+use rusqlite::params;
+#[cfg(feature = "postgres")]
+use diesel::result::Error;
+#[cfg(feature = "postgres")]
+use diesel::PgConnection;
+#[cfg(feature = "postgres")]
 use crate::schema::{self, account};
 
-const REDIS_DATABASE_URL: &'static str = "REDIS_DATABASE_URL";
+const REDIS_DATABASE_URL: &str = "REDIS_DATABASE_URL";
 #[cfg(not(feature = "postgres"))]
-pub const SQLITE_DATABASE_LOCATION: &'static str = "test.sqlite";
+pub const SQLITE_DATABASE_LOCATION: &str = "test.sqlite";
 #[cfg(feature = "postgres")]
-const POSTGRES_DATABASE_URL: &'static str = "DATABASE_URL";
+const POSTGRES_DATABASE_URL: &str = "DATABASE_URL";
 
 pub fn redis_connect() -> Result<redis::Connection, redis::RedisError> {
-    let url = env::var(REDIS_DATABASE_URL).expect(&format!("{} must be set", REDIS_DATABASE_URL));
+    let url = env::var(REDIS_DATABASE_URL).unwrap_or_else(|_| panic!("{} must be set", REDIS_DATABASE_URL));
 
     let redis = redis::Client::open(url).expect("Can't connect to redis");
     redis.get_connection()
@@ -26,10 +31,15 @@ pub fn redis_connect() -> Result<redis::Connection, redis::RedisError> {
 trait AccountDatabase {
     fn prepare(&self);
     // TODO change this from option to result
-    fn new_user(&mut self, username: &str, password: Vec<u8>) -> Result<Account, AccountCreationError>;
+    fn new_user(
+        &mut self,
+        username: &str,
+        password: Vec<u8>,
+    ) -> Result<Account, AccountCreationError>;
     fn get_account_hash(&mut self, username: &str) -> Option<PasswordHashString>;
 }
 
+#[cfg(feature = "postgres")]
 impl AccountDatabase for PgConnection {
     fn prepare(&self) {
         todo!()
@@ -55,8 +65,10 @@ impl AccountDatabase for PgConnection {
         match result {
             Ok(x) => Ok(x),
             Err(e) => match e {
-                Error::DatabaseError(a, b) => match a {
-                    diesel::result::DatabaseErrorKind::UniqueViolation => Err(AccountCreationError::UsernameAlreadyTaken),
+                Error::DatabaseError(a, _) => match a {
+                    diesel::result::DatabaseErrorKind::UniqueViolation => {
+                        Err(AccountCreationError::UsernameAlreadyTaken)
+                    }
                     _ => todo!(),
                 },
                 _ => todo!(),
@@ -72,137 +84,119 @@ impl AccountDatabase for PgConnection {
             .load::<Account>(self)
             .expect("Error loading accounts");
 
-        match results.into_iter().next() {
-            Some(sql_results) => {
-                let hash_string: String = sql_results
-                    .password_hash
-                    .iter()
-                    .map(|f| *f as char)
-                    .collect();
-                // IDK what encoding is actually used
-                if let Ok(hash) = argon2::PasswordHash::parse(&hash_string, Encoding::B64) {
-                    return Some(hash.serialize());
-                }
+        if let Some(sql_results) = results.into_iter().next() {
+            let hash_string: String = sql_results
+                .password_hash
+                .iter()
+                .map(|f| *f as char)
+                .collect();
+            // IDK what encoding is actually used
+            if let Ok(hash) = argon2::PasswordHash::parse(&hash_string, Encoding::B64) {
+                return Some(hash.serialize());
             }
-            None => {}
         }
         None
     }
 }
 
+
+#[cfg(not(feature = "postgres"))]
 impl AccountDatabase for rusqlite::Connection {
     fn prepare(&self) {
         if let Err(e) = self.execute(include_str!("new.sql"), []) {
-            // todo go crazy about the error
-            todo!()
+            error!("Failed to prepare the sqlite database. {}", e);
+            panic!("Sqlite database preparation failed.");
         }
     }
 
-    fn new_user(&mut self, username: &str, hashed_password: Vec<u8>) -> Result<Account, AccountCreationError> {
-        match self
-            .execute("INSERT INTO account (username, password_hash) VALUES (?1, ?2)", (username, hashed_password))
-        {
+    fn new_user(
+        &mut self,
+        username: &str,
+        hashed_password: Vec<u8>,
+    ) -> Result<Account, AccountCreationError> {
+        match self.execute(
+            "INSERT INTO account (username, password_hash) VALUES (?1, ?2)",
+            (username, hashed_password),
+        ) {
             Ok(_) => {
                 let mut statement = self
-                    .prepare("SELECT id, username, password_hash FROM account WHERE username == (?1)")
+                    .prepare(
+                        "SELECT id, username, password_hash FROM account WHERE username == (?1)",
+                    )
                     .expect("Prepared sql statement failed?");
-                match statement.query_map(params![username], |row| {
-                    return Ok(Account {
+
+                let query_rows = statement.query_map(params![username], |row| {
+                    Ok(Account {
                         // these names need to line up with the ones in new.sql
                         id: row.get("id").unwrap(),
                         email: row.get("username").unwrap(),
                         password_hash: row.get("password_hash").unwrap(),
-                    });
-                }) {
+                    })
+                });
+                match query_rows {
                     // output from select statement
                     Ok(x) => {
                         if let Some(next) = x.into_iter().next() {
                             match next {
                                 Ok(acct) => return Ok(acct),
-                                Err(_) => todo!(),
+                                Err(_) => error!("Failed to get user just after creating it."),
                             }
                         }
-                    },
-                    Err(_) => todo!(),
-                };
+                    }
+                    Err(_) => error!("Failed to submit request to get user just after creating it."),
+                }
             }
             Err(e) => {
+                use rusqlite::ErrorCode;
                 match e {
-                    rusqlite::Error::SqliteFailure(a, b) => {
-                        match a.code {
-                            rusqlite::ErrorCode::InternalMalfunction => todo!(),
-                            rusqlite::ErrorCode::PermissionDenied => todo!(),
-                            rusqlite::ErrorCode::OperationAborted => todo!(),
-                            rusqlite::ErrorCode::DatabaseBusy => todo!(),
-                            rusqlite::ErrorCode::DatabaseLocked => todo!(),
-                            rusqlite::ErrorCode::OutOfMemory => todo!(),
-                            rusqlite::ErrorCode::ReadOnly => todo!(),
-                            rusqlite::ErrorCode::OperationInterrupted => todo!(),
-                            rusqlite::ErrorCode::SystemIoFailure => todo!(),
-                            rusqlite::ErrorCode::DatabaseCorrupt => todo!(),
-                            rusqlite::ErrorCode::NotFound => todo!(),
-                            rusqlite::ErrorCode::DiskFull => todo!(),
-                            rusqlite::ErrorCode::CannotOpen => todo!(),
-                            rusqlite::ErrorCode::FileLockingProtocolFailed => todo!(),
-                            rusqlite::ErrorCode::SchemaChanged => todo!(),
-                            rusqlite::ErrorCode::TooBig => todo!(),
-                            rusqlite::ErrorCode::ConstraintViolation => return Err(AccountCreationError::UsernameAlreadyTaken),
-                            rusqlite::ErrorCode::TypeMismatch => todo!(),
-                            rusqlite::ErrorCode::ApiMisuse => todo!(),
-                            rusqlite::ErrorCode::NoLargeFileSupport => todo!(),
-                            rusqlite::ErrorCode::AuthorizationForStatementDenied => todo!(),
-                            rusqlite::ErrorCode::ParameterOutOfRange => todo!(),
-                            rusqlite::ErrorCode::Unknown => todo!(),
-                            _ => todo!(),
+                    rusqlite::Error::SqliteFailure(a, b) => match a.code {
+                        ErrorCode::OutOfMemory |
+                        ErrorCode::SystemIoFailure |
+                        ErrorCode::DiskFull |
+                        ErrorCode::CannotOpen => {
+                            error!("Hardware issue preventing write access to the database! {:?} {:?}", b, a.code);
+                        },
+                        ErrorCode::ConstraintViolation => {
+                            return Err(AccountCreationError::UsernameAlreadyTaken)
                         }
+                        e => error!("Sqlite failure {:?}", e),
                     },
-                    rusqlite::Error::SqliteSingleThreadedMode => todo!(),
-                    rusqlite::Error::FromSqlConversionFailure(_, _, _) => todo!(),
-                    rusqlite::Error::IntegralValueOutOfRange(_, _) => todo!(),
-                    rusqlite::Error::Utf8Error(_) => todo!(),
-                    rusqlite::Error::NulError(_) => todo!(),
-                    rusqlite::Error::InvalidParameterName(_) => todo!(),
-                    rusqlite::Error::InvalidPath(_) => todo!(),
-                    rusqlite::Error::ExecuteReturnedResults => todo!(),
-                    rusqlite::Error::QueryReturnedNoRows => todo!(),
-                    rusqlite::Error::InvalidColumnIndex(_) => todo!(),
-                    rusqlite::Error::InvalidColumnName(_) => todo!(),
-                    rusqlite::Error::InvalidColumnType(_, _, _) => todo!(),
-                    rusqlite::Error::StatementChangedRows(_) => todo!(),
-                    rusqlite::Error::ToSqlConversionFailure(_) => todo!(),
-                    rusqlite::Error::InvalidQuery => todo!(),
-                    rusqlite::Error::MultipleStatement => todo!(),
-                    rusqlite::Error::InvalidParameterCount(_, _) => todo!(),
-                    rusqlite::Error::SqlInputError { error, msg, sql, offset } => todo!(),
-                    _ => todo!(),
+                    e => error!("General rusqlite error: {}", e),
                 };
             }
-       }
+        }
         Err(AccountCreationError::Unknown)
     }
 
     fn get_account_hash(&mut self, username: &str) -> Option<PasswordHashString> {
         let mut statement = self
             .prepare("SELECT (password_hash) FROM account WHERE username == (?1)")
-            .unwrap();
-        match statement.query_map(params![username], |row| {
+            .expect("Prepared statement failed? Worked in testing...");
+
+        let query_row = statement.query_map(params![username], |row| {
             let hash: Vec<u8> = row.get("password_hash").unwrap();
             let hash = hash.iter().map(|f| *f as char).collect::<String>();
 
             if let Ok(hash) = argon2::PasswordHash::parse(&hash, Encoding::B64) {
-                return Ok(Some(hash.serialize()));
+                Ok(Some(hash.serialize()))
+            } else {
+                Ok(None)
             }
-            return Ok(None)
-        }) {
-            Ok(x) => {
-                let y = x.into_iter()
+        });
+
+        match query_row {
+            Ok(rows) => {
+                rows
+                    .into_iter()
                     .filter_map(|f| f.ok())
-                    .filter_map(|f| f)
-                    .next();
-                return y;
+                    .flatten()
+                    .next()
+            }
+            Err(e) => {
+                error!("{:?}", e);
+                None
             },
-            Err(e) => todo!(),
-        };
+        }
     }
 }
 

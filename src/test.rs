@@ -1,5 +1,5 @@
-
-
+#![allow(clippy::todo)]
+#![allow(clippy::unimplemented)]
 
 mod tests {
 
