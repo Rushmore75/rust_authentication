@@ -35,6 +35,7 @@ fn create_account() {
     let rocket = get_rocket();
     let client = Client::tracked(rocket).unwrap();
 
+    // TODO crashes if there isn't a database available
     let res = client
         .post(uri!(pages::create_account))
         .header(ContentType::JSON)
@@ -46,7 +47,5 @@ fn create_account() {
         "#)
         .dispatch();
 
-    
     assert_eq!(res.status(), Status::Accepted);
-
 }
