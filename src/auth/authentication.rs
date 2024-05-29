@@ -148,6 +148,6 @@ impl LoginError {
             LoginError::NoAccount       => Status::Unauthorized,
             LoginError::WrongPassword   => Status::Unauthorized,
         };
-        Outcome::Failure((status, self))
+        Outcome::Error((status, self))
     }
 }

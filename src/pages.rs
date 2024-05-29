@@ -6,7 +6,7 @@ use crate::db::{NewAccount, Account};
 /// Realistically, any path requiring `Session` with do the same login attempts.
 #[get("/login")]
 pub fn login(_auth: Session) -> status::Accepted<&'static str> {
-    status::Accepted(Some("Logged in"))
+    status::Accepted("Logged in")
 }
 
 /// Logs out user. Real surprising I know.
@@ -14,7 +14,7 @@ pub fn login(_auth: Session) -> status::Accepted<&'static str> {
 pub async fn logout(auth: Session, keyring: &State<crate::ManagedState>, jar: &CookieJar<'_>) -> status::Accepted<&'static str> {
     keyring.write().await.logout(&auth);
     jar.remove_private(Cookie::named(SESSION_COOKIE_ID));
-    status::Accepted(Some("logged out"))
+    status::Accepted("logged out")
 }
 
 /// Really, this is just an example, as you will probably want some other account authentication
