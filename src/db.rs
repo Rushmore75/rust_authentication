@@ -99,39 +99,85 @@ impl AccountDatabase for rusqlite::Connection {
     }
 
     fn new_user(&mut self, username: &str, hashed_password: Vec<u8>) -> Result<Account, AccountCreationError> {
-        if self
-            .execute(
-                "INSERT INTO account (username, password_hash) VALUES (?1, ?2)",
-                (username, hashed_password),
-            )
-            .is_ok()
+        match self
+            .execute("INSERT INTO account (username, password_hash) VALUES (?1, ?2)", (username, hashed_password))
         {
-            let mut statement = self
-                .prepare("SELECT id, username, password_hash FROM account WHERE username == (?1)")
-                .unwrap();
-            match statement.query_map(params![username], |row| {
-                return Ok(Account {
-                    // these names need to line up with the ones in new.sql
-                    id: row.get("id").unwrap(),
-                    email: row.get("username").unwrap(),
-                    password_hash: row.get("password_hash").unwrap(),
-                });
-            }) {
-                // output from select statement
-                Ok(x) => {
-                    if let Some(next) = x.into_iter().next() {
-                        match next {
-                            Ok(acct) => return Ok(acct),
-                            Err(_) => todo!(),
+            Ok(_) => {
+                let mut statement = self
+                    .prepare("SELECT id, username, password_hash FROM account WHERE username == (?1)")
+                    .expect("Prepared sql statement failed?");
+                match statement.query_map(params![username], |row| {
+                    return Ok(Account {
+                        // these names need to line up with the ones in new.sql
+                        id: row.get("id").unwrap(),
+                        email: row.get("username").unwrap(),
+                        password_hash: row.get("password_hash").unwrap(),
+                    });
+                }) {
+                    // output from select statement
+                    Ok(x) => {
+                        if let Some(next) = x.into_iter().next() {
+                            match next {
+                                Ok(acct) => return Ok(acct),
+                                Err(_) => todo!(),
+                            }
                         }
-                    }
-                },
-                Err(_) => todo!(),
-            };
-        } else {
-            // TODO throw a fit
-            todo!()
-        }
+                    },
+                    Err(_) => todo!(),
+                };
+            }
+            Err(e) => {
+                match e {
+                    rusqlite::Error::SqliteFailure(a, b) => {
+                        match a.code {
+                            rusqlite::ErrorCode::InternalMalfunction => todo!(),
+                            rusqlite::ErrorCode::PermissionDenied => todo!(),
+                            rusqlite::ErrorCode::OperationAborted => todo!(),
+                            rusqlite::ErrorCode::DatabaseBusy => todo!(),
+                            rusqlite::ErrorCode::DatabaseLocked => todo!(),
+                            rusqlite::ErrorCode::OutOfMemory => todo!(),
+                            rusqlite::ErrorCode::ReadOnly => todo!(),
+                            rusqlite::ErrorCode::OperationInterrupted => todo!(),
+                            rusqlite::ErrorCode::SystemIoFailure => todo!(),
+                            rusqlite::ErrorCode::DatabaseCorrupt => todo!(),
+                            rusqlite::ErrorCode::NotFound => todo!(),
+                            rusqlite::ErrorCode::DiskFull => todo!(),
+                            rusqlite::ErrorCode::CannotOpen => todo!(),
+                            rusqlite::ErrorCode::FileLockingProtocolFailed => todo!(),
+                            rusqlite::ErrorCode::SchemaChanged => todo!(),
+                            rusqlite::ErrorCode::TooBig => todo!(),
+                            rusqlite::ErrorCode::ConstraintViolation => return Err(AccountCreationError::UsernameAlreadyTaken),
+                            rusqlite::ErrorCode::TypeMismatch => todo!(),
+                            rusqlite::ErrorCode::ApiMisuse => todo!(),
+                            rusqlite::ErrorCode::NoLargeFileSupport => todo!(),
+                            rusqlite::ErrorCode::AuthorizationForStatementDenied => todo!(),
+                            rusqlite::ErrorCode::ParameterOutOfRange => todo!(),
+                            rusqlite::ErrorCode::Unknown => todo!(),
+                            _ => todo!(),
+                        }
+                    },
+                    rusqlite::Error::SqliteSingleThreadedMode => todo!(),
+                    rusqlite::Error::FromSqlConversionFailure(_, _, _) => todo!(),
+                    rusqlite::Error::IntegralValueOutOfRange(_, _) => todo!(),
+                    rusqlite::Error::Utf8Error(_) => todo!(),
+                    rusqlite::Error::NulError(_) => todo!(),
+                    rusqlite::Error::InvalidParameterName(_) => todo!(),
+                    rusqlite::Error::InvalidPath(_) => todo!(),
+                    rusqlite::Error::ExecuteReturnedResults => todo!(),
+                    rusqlite::Error::QueryReturnedNoRows => todo!(),
+                    rusqlite::Error::InvalidColumnIndex(_) => todo!(),
+                    rusqlite::Error::InvalidColumnName(_) => todo!(),
+                    rusqlite::Error::InvalidColumnType(_, _, _) => todo!(),
+                    rusqlite::Error::StatementChangedRows(_) => todo!(),
+                    rusqlite::Error::ToSqlConversionFailure(_) => todo!(),
+                    rusqlite::Error::InvalidQuery => todo!(),
+                    rusqlite::Error::MultipleStatement => todo!(),
+                    rusqlite::Error::InvalidParameterCount(_, _) => todo!(),
+                    rusqlite::Error::SqlInputError { error, msg, sql, offset } => todo!(),
+                    _ => todo!(),
+                };
+            }
+       }
         Err(AccountCreationError::Unknown)
     }
 

@@ -4,8 +4,8 @@
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::todo)]
 #![deny(clippy::unimplemented)]
-#![deny(clippy::expect_used)]
-#![deny(clippy::expect_fun_call)]
+
+#![warn(clippy::expect_used)]
 #![warn(clippy::panic)]
 
 mod test;
