@@ -13,7 +13,7 @@ pub fn login(_auth: Session) -> status::Accepted<&'static str> {
 #[get("/logout")]
 pub async fn logout(auth: Session, keyring: &State<crate::ManagedState>, jar: &CookieJar<'_>) -> status::Accepted<&'static str> {
     keyring.write().await.logout(&auth);
-    jar.remove_private(Cookie::named(SESSION_COOKIE_ID));
+    jar.remove_private(Cookie::from(SESSION_COOKIE_ID));
     status::Accepted("logged out")
 }
 

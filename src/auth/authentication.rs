@@ -103,7 +103,7 @@ impl<'r> FromRequest<'r> for Session {
             };
             // Something above, has at this point, gone wrong.
 
-            // This allows the user to "login" on any abatrary http request that requires
+            // This allows the user to "login" on any arbitrary http request that requires
             // authentication. Don't really see that as a problem but it seems odd.
             match request.headers().get_one(USERNAME_HEADER_ID) {
                 Some(username) => {

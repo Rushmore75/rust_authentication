@@ -21,8 +21,9 @@ pub fn redis_connect() -> Result<redis::Connection, redis::RedisError> {
 }
 
 pub fn establish_connection() -> PgConnection {
-    // FIXME This method has some unwraps and expects, this is bad for a lib to have! Fix it.
-    dotenvy::dotenv().unwrap();
+    // errors out if the .env file isn't found.
+    // ignoring the error
+    let _ = dotenvy::dotenv_override();
 
     // the env should be loaded into ram at this point, so there shouldn't be problems running this lots
     let database_url = env::var(POSTGRES_DATABASE_URL).expect(&format!("{} must be set!", POSTGRES_DATABASE_URL));
