@@ -1,4 +1,12 @@
 #![feature(trait_alias)]
+#![feature(io_error_more)]
+
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::todo)]
+#![deny(clippy::unimplemented)]
+
+#![warn(clippy::expect_used)]
+#![warn(clippy::panic)]
 
 mod test;
 mod db;
@@ -9,9 +17,12 @@ pub mod pages;
 
 pub use auth::authentication::Session;
 
+#[cfg(not(feature = "redis"))]
 use std::collections::HashMap;
-use crate::auth::keyring::Keyring;
+#[cfg(not(feature = "redis"))]
 use auth::authentication::Uuid;
+
+use crate::auth::keyring::Keyring;
 use rocket::tokio::sync::RwLock;
 
 #[cfg(not(feature = "redis"))]
