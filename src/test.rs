@@ -139,6 +139,7 @@ mod tests {
 
         ensure_testing_account(&client);
 
+        // login
         let res = client
             .get(uri!(pages::login))
             .header(Header::new(
@@ -152,7 +153,7 @@ mod tests {
         trace!("Logged in as account");
 
         if let Some(_cookie) = res.cookies().get(authentication::SESSION_COOKIE_ID) {
-            // logout
+            // logout (this also tests cookie storage)
             let res = client.get(uri!(pages::logout)).dispatch();
             assert_eq!(res.status(), Status::Accepted);
             trace!("Logged out of account.");
