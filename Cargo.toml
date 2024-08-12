@@ -11,7 +11,7 @@ postgres = []
 [dependencies]
 # TODO optional deps
 diesel = { version = "2.0", features = ["postgres"] }
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 dotenvy = "^0.15"
 rocket = { version = "0.5", features = ["json", "secrets"]}
@@ -19,7 +19,7 @@ serde = { version = "1.0", features = ["derive"] }
 argon2 = "^0.5"
 # v4 is uuids from random information
 uuid = { version = "1", features = ["v4", "fast-rng"] }
-redis = "0.25"
+redis = "0.26"
 
 tracing = "0.1.40"
 # tracing-subscriber = { version = "0.3", features = ["env-filter"] }
